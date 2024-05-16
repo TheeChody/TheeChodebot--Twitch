@@ -1,0 +1,4 @@
+/.env
+/user_token.json
+/data/
+/logs/
