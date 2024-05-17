@@ -4,6 +4,9 @@ import time
 import asyncio
 import logging
 import datetime
+# import threading
+# from countdown import countdown, write_clock, read_clock, get_sec
+# from countdown import CountDown
 from pathlib import Path
 from mondocs import Users, EconomyData, Channel
 from dotenv import load_dotenv
@@ -28,6 +31,7 @@ mongo_twitch_collection = os.getenv("montwi_string")
 mongo_discord_collection = os.getenv("mondis_string")
 long_dashes = "-------------------------------------------------"
 target_scopes = [AuthScope.BITS_READ,
+                 AuthScope.CLIPS_EDIT,
                  AuthScope.CHANNEL_BOT,
                  AuthScope.USER_READ_CHAT,
                  AuthScope.USER_WRITE_CHAT,
@@ -42,8 +46,14 @@ target_scopes = [AuthScope.BITS_READ,
                  AuthScope.CHANNEL_MANAGE_REDEMPTIONS,
                  AuthScope.CHANNEL_READ_SUBSCRIPTIONS,
                  AuthScope.CHANNEL_MANAGE_PREDICTIONS,
-                 AuthScope.CHANNEL_READ_PREDICTIONS]  #Attempting this to alleviate prediction issues
+                 AuthScope.CHANNEL_READ_PREDICTIONS]  # ToDo: FIGURE OUT WHY THEE PREDICTION SHIT FLIPS OUT ON END/LOCK CALL!!!!!!!!!!!
 twitch_bot = Twitch(id_twitch_client, id_twitch_secret)
+cmd = "$"
+registered_commands = [f"{cmd}commands",  # ToDo: Think about making use of this as a tuple and checking thru to see if thee bits before spaces match?
+                       f"{cmd}gamble NUMBER_HERE",
+                       f"{cmd}lastcomment",
+                       f"{cmd}leaderbitties",
+                       f"{cmd}pt discord/twitch NUMBER_HERE"]
 
 if getattr(sys, 'frozen', False):
     application_path = os.path.dirname(sys.executable)
@@ -70,7 +80,16 @@ async def on_stream_ad_start(data: ChannelAdBreakBeginEvent):
         return
 
 
-async def on_stream_chat_message(data: ChannelChatMessageEvent):  # ToDo: Add .startswith for cheer, to multiply points added later on
+async def on_stream_chat_message(data: ChannelChatMessageEvent):
+    # ToDo: ------------------------------------------------------------------------------------------------------------
+    #  Add .startswith for cheer, to multiply points added later on--
+    #  --or like maybe that should live in thee cheer area??? or would that be too smart?
+    #  On that note, add identifiers for subbies, gifted subbies to add points
+    #  Really there's a lot to do - Add new code for doing new things, new commands for mods--
+    #  --just so much to take care of and do
+    #  Think HEAVILY on moving chat_logs data to channel_document--
+    #  --possibly have a new 'list' of chat entries for each stream day.
+    #  -------------------------------------- End of on_stream_chat_message List ---------------------------------------
     try:
         def get_last_chatter():
             try:
@@ -93,6 +112,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):  # ToDo: Add .s
         message_starts_with = (f"{data.event.broadcaster_user_name}",
                                f"@{data.event.broadcaster_user_name}",
                                f"{get_last_chatter()}",
+                               # f"{data.event.chatter_user_name}",
                                f"Bitties 4 Titties Leaderboard: ",
                                f"I couldn't ID ",
                                f"You do not have enough ",
@@ -100,22 +120,37 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):  # ToDo: Add .s
                                f"Backend Mess up ")
         if data.event.chatter_user_id == id_broadcaster_account and data.event.message.text.startswith(message_starts_with):
             return
+        if data.event.message.text.startswith("!"):
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} commands start with '{cmd}' in this channel.")
         message_add_points = 10
         chatter_username = data.event.chatter_user_name
         chatter_document = await get_chatter_document(data)
         if chatter_document is None:
             logger.error(f"Chatter Document is None!! -- {data.event.chatter_user_id}/{data.event.chatter_user_name}/{data.event.chatter_user_login}")
             pass
-        if data.event.message.text in ("!leaderbitties", "!leader bitties", "!leaderbits", "!leader bits"):
-            bits_lb = await twitch_bot.get_bits_leaderboard()
-            print(bits_lb.total)
-            users_board = ""
-            for user in bits_lb:
-                users_board += f"#{user.rank:02d} - {user.user_name}: {user.score} - "
-            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Bitties 4 Titties Leaderboard: {users_board[:-3]}")
-        elif data.event.message.text in ("!lastcomment", "!last comment", "!lastmessage", "!last message"):
-            last_message = None
+
+        if data.event.message.text.replace(" ", "") in (f"{cmd}commands", f"{cmd}cmds", f"{cmd}commandlist", f"{cmd}cmdlist"):
             try:
+                await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Registered commands are: {', '.join(registered_commands)}")
+            except Exception as f:
+                formatted_time = fortime()
+                logger.error(f"{formatted_time}: Error in on_stream_chat_message - commands command -- {f}")
+                return
+        elif data.event.message.text.replace(" ", "") in (f"{cmd}leaderbitties", f"{cmd}leaderbits"):
+            try:
+                bits_lb = await twitch_bot.get_bits_leaderboard()
+                print(bits_lb.total)
+                users_board = ""
+                for user in bits_lb:
+                    users_board += f"#{user.rank:02d} - {user.user_name}: {user.score} - "
+                await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Bitties 4 Titties Leaderboard: {users_board[:-3]}")
+            except Exception as f:
+                formatted_time = fortime()
+                logger.error(f"{formatted_time}: Error in on_stream_chat_message - leaderbitties command -- {f}")
+                return
+        elif data.event.message.text.replace(" ", "") in (f"{cmd}lastcomment", f"{cmd}lastmessage", "!lastcomment", "!lastmessage"):
+            try:
+                last_message = None
                 with open(chat_log, "r") as file:
                     chat_logs = file.read()
                 chat_logs = list(map(str, chat_logs.splitlines()))
@@ -123,13 +158,12 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):  # ToDo: Add .s
                     if last.startswith(data.event.chatter_user_id):
                         user_name, last_message = last.split(": ", maxsplit=1)
                         break
+                await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"@{data.event.broadcaster_user_name}!!!! {chatter_username}'s last message was:\n{last_message if not None else 'Not Found!!!'}")
             except Exception as f:
                 formatted_time = fortime()
-                logger.error(f"{formatted_time}: Error fetching last message -- {f}")
+                logger.error(f"{formatted_time}: Error in on_stream_chat_message - lastcomment command -- {f}")
                 return
-            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"@{data.event.broadcaster_user_name}!!!! {chatter_username}'s last message was:\n{last_message if not None else 'Not Found!!!'}")
-            return
-        elif data.event.message.text.startswith("!pt"):
+        elif data.event.message.text.startswith(f"{cmd}pt"):
             try:
                 if chatter_document['user_discord_id'] == 0:
                     await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} you do not have your discord ID linked to your twitch yet")
@@ -154,8 +188,9 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):  # ToDo: Add .s
                         print(f"--{transfer_value}--{type(transfer_value)}")
                         return
             except Exception as f:
-                print(f"ERROR IN !pt -- {f}")
-        elif data.event.message.text.startswith("!gamble"):
+                formatted_time = fortime()
+                logger.error(f"{formatted_time}: Error in on_stream_chat_message - pt command -- {f}")
+        elif data.event.message.text.startswith(f"{cmd}gamble"):
             try:
                 bet_value = data.event.message.text.lstrip("!gamble ")
                 if bet_value.isdigit():
@@ -184,12 +219,17 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):  # ToDo: Add .s
                     gamble_logger.info(f"{formatted_time}: {chatter_username}/{data.event.chatter_user_id} gambled and {response}.")
             except Exception as f:
                 formatted_time = fortime()
-                gamble_logger.error(f"{formatted_time}: Error in gamble command -- {f}")
+                logger.error(f"{formatted_time}: Error in on_stream_chat_message - gamble command -- {f}")
+                gamble_logger.error(f"{formatted_time}: Error in on_stream_chat_message - gamble command -- {f}")
                 await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} something wen't wrong, TheeChody will fix it sooner than later. Error logged in thee background")
                 return
         else:
-            await twitch_points_transfer(chatter_document, message_add_points)
-            chat_logger.info(f"{data.event.chatter_user_id}/{data.event.chatter_user_name}: {data.event.message.text if data.event.message_type == 'text' else 'not a text message'}")
+            try:
+                await twitch_points_transfer(chatter_document, message_add_points)
+                chat_logger.info(f"{data.event.chatter_user_id}/{data.event.chatter_user_name}: {data.event.message.text if data.event.message_type == 'text' else 'not a text message'}")
+            except Exception as f:
+                formatted_time = fortime()
+                logger.error(f"{formatted_time}: Error in on_stream_chat_message - else - twitch_points? -- {f}")
     except Exception as e:
         formatted_time = fortime()
         logger.error(f"{formatted_time}: Error in on_stream_chat_message -- {e}")
@@ -488,34 +528,37 @@ async def run():
     while True:
         async def shutdown():
             try:
-                print("Shutting down processes. Stand By")
+                print("Shutting down twitch bot processes. Stand By")
                 await event_sub.stop()
                 await twitch_bot.close()
-                await disconnect_mongo()
+                # await disconnect_mongo()
                 await asyncio.sleep(1)
-                print("Processes shut down successfully")
+                print("Twitch bot processes shut down successfully")
             except Exception as e:
                 print(f"Error in shutdown() -- {e}")
                 pass
 
         try:
-            user_input = input("Enter 1 to Start Timer\nEnter 2 to Stop Timer\nEnter 0 to Exit Program\n")
+            user_input = input("Enter 1 to Start Timer\nEnter 2 to Stop Timer\nEnter 0 to Halt Bot\n")
             if user_input.isdigit():
                 user_input = int(user_input)
-            if user_input in (1, 2):
-                print("Values 1 & 2 Not Programmed Yet")
-            elif user_input == 0:
-                await shutdown()
-                break
+                if user_input == 0:
+                    await shutdown()
+                    break
+                elif user_input in (1, 2):
+                    print("Values 1 & 2 Not Programmed Yet")
+                else:
+                    print(f"Invalid Input -- You put '{user_input}'")
             else:
-                print(f"{user_input} is not valid")
+                print(f"Invalid Input -- You put '{user_input}' which is a {type(user_input)}")
         except Exception as e:
             if KeyboardInterrupt:
                 await shutdown()
                 break
             else:
-                print(f"Error in while loop -- {e}")
-                pass
+                formatted_time = fortime()
+                logger.error(f"{formatted_time}: Error in BOT Loop -- {e}")
+                continue
 
 
 def fortime():
@@ -702,20 +745,73 @@ if None in (logger, chat_logger, gamble_logger):
     print(f"One of thee loggers isn't setup right -- {logger}/{chat_logger}/{gamble_logger} -- Quitting program")
     quit()
 
-try:
-    logger.info(long_dashes)
-    twitch_database = connect_mongo(mongo_twitch_collection, DEFAULT_CONNECTION_NAME)
-    time.sleep(1)
-    discord_database = connect_mongo(mongo_discord_collection, "Discord_Database")
-    time.sleep(1)
-    if None in (twitch_database, discord_database):
-        disconnect_mongo()
-        formatted_time = fortime()
-        logger.error(f"{formatted_time}: Error connecting one of thee databases -- {twitch_database}/{discord_database} -- Quitting program")
-        quit()
-except Exception as e:
-    formatted_time = fortime()
-    logger.error(f"{formatted_time}: Error Loading Twitch Database -- {e}")
-    pass
+# try:
+#     logger.info(long_dashes)
+#     twitch_database = connect_mongo(mongo_twitch_collection, DEFAULT_CONNECTION_NAME)
+#     time.sleep(1)
+#     discord_database = connect_mongo(mongo_discord_collection, "Discord_Database")
+#     time.sleep(1)
+#     if None in (twitch_database, discord_database):
+#         disconnect_mongo()
+#         formatted_time = fortime()
+#         logger.error(f"{formatted_time}: Error connecting one of thee databases -- {twitch_database}/{discord_database} -- Quitting program")
+#         quit()
+# except Exception as e:
+#     formatted_time = fortime()
+#     logger.error(f"{formatted_time}: Error Loading Twitch Database -- {e}")
+#     pass
 
-asyncio.run(run())
+while True:
+    def shutdown():
+        asyncio.run(disconnect_mongo())
+        time.sleep(1)
+    try:
+        # user_input = input("Enter 1 to start twitch bot\nEnter 2 to compile data\nEnter 0 to Exit Program\n")
+        user_input = input("Enter 1 to start twitch bot\nEnter 0 to Exit Program\n")
+        if user_input.isdigit():
+            user_input = int(user_input)
+            if user_input == 0:
+                print(f"Exiting Program")
+                shutdown()
+                break
+            elif user_input == 1:
+                try:
+                    logger.info(long_dashes)
+                    twitch_database = connect_mongo(mongo_twitch_collection, DEFAULT_CONNECTION_NAME)
+                    time.sleep(1)
+                    discord_database = connect_mongo(mongo_discord_collection, "Discord_Database")
+                    time.sleep(1)
+                    if None in (twitch_database, discord_database):
+                        asyncio.run(disconnect_mongo())
+                        formatted_time = fortime()
+                        logger.error(f"{formatted_time}: Error connecting one of thee databases -- {twitch_database}/{discord_database} -- Quitting program")
+                        # quit()
+                        break
+                except Exception as f:
+                    formatted_time = fortime()
+                    logger.error(f"{formatted_time}: Error Loading Database(s) -- {f}")
+                    break
+                asyncio.run(run())
+            elif user_input == 2:
+                print("Logic Not Coded")
+            # elif user_input == 3:
+            #     threading.Thread(target=CountDown().start()).run()
+            #     clock_thread = threading.Thread(target=CountDown().start()).run()
+            # elif user_input == 4:
+            #     CountDown().stop()
+            #     # clock_thread.
+            else:
+                print(f"Invalid Input -- You Entered '{user_input}'")
+        else:
+            print(f"Invalid Input -- You entered '{user_input}' and it's type is a {type(user_input)}")
+    except Exception as e:
+        if KeyboardInterrupt:
+            print(f"Exiting Program")
+            shutdown()
+            break
+        else:
+            formatted_time = fortime()
+            logger.error(f"{formatted_time}: Error in MAIN loop -- {e}")
+            continue
+
+# asyncio.run(run())

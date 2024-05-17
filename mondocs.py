@@ -13,6 +13,8 @@ class Channel(Document):
     hype_train_current = BooleanField(default=False)
     hype_train_current_level = IntField(default=0)
     hype_train_record_level = IntField(default=0)
+    cmd_gamble_last_chatter = DynamicField(default="")
+    meta = {"db_alias": "default"}
 
 
 class Users(Document):
