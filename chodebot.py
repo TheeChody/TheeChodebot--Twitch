@@ -5,7 +5,7 @@ import asyncio
 import logging
 import datetime
 from pathlib import Path
-from mondocs import Users, EconomyData
+from mondocs import Users, EconomyData, Channel
 from dotenv import load_dotenv
 from twitchAPI.helper import first
 from twitchAPI.twitch import Twitch
@@ -14,31 +14,35 @@ from pyprobs import Probability as pr
 from twitchAPI.eventsub.websocket import EventSubWebsocket
 from twitchAPI.oauth import UserAuthenticationStorageHelper
 from mongoengine import connect, disconnect_all, DEFAULT_CONNECTION_NAME
-from twitchAPI.object.eventsub import ChannelChatMessageEvent, ChannelFollowEvent, StreamOnlineEvent, \
-    StreamOfflineEvent, ChannelAdBreakBeginEvent, ChannelCheerEvent, ChannelPointsCustomRewardRedemptionAddEvent, \
-    ChannelPollBeginEvent, ChannelPollEndEvent, ChannelRaidEvent, ChannelSubscribeEvent, ChannelSubscriptionGiftEvent
+from twitchAPI.object.eventsub import ChannelAdBreakBeginEvent, ChannelChatMessageEvent, ChannelCheerEvent, ChannelFollowEvent, \
+    StreamOnlineEvent, StreamOfflineEvent, HypeTrainEvent, HypeTrainEndEvent, ChannelPollBeginEvent, ChannelPollEndEvent, \
+    ChannelRaidEvent, ChannelPointsCustomRewardRedemptionAddEvent, ChannelSubscribeEvent, ChannelSubscriptionGiftEvent, \
+    ChannelUpdateEvent, ChannelPredictionEvent, ChannelPredictionEndEvent, ChannelChatNotificationEvent
 
 load_dotenv()
 id_twitch_client = os.getenv("client")
 id_twitch_secret = os.getenv("secret")
-id_theechody_account = os.getenv("theechody")
-id_theechodebot_account = os.getenv("theechodebot")
+id_broadcaster_account = os.getenv("broadcaster")
 mongo_login_string = os.getenv("monlog_string")
 mongo_twitch_collection = os.getenv("montwi_string")
 mongo_discord_collection = os.getenv("mondis_string")
 long_dashes = "-------------------------------------------------"
 target_scopes = [AuthScope.BITS_READ,
+                 AuthScope.CHANNEL_BOT,
                  AuthScope.USER_READ_CHAT,
                  AuthScope.USER_WRITE_CHAT,
                  AuthScope.CHANNEL_MODERATE,
                  AuthScope.CHANNEL_READ_ADS,
                  AuthScope.CHANNEL_MANAGE_POLLS,
-                 AuthScope.CHANNEL_MANAGE_REDEMPTIONS,
+                 AuthScope.CHANNEL_SUBSCRIPTIONS,
+                 AuthScope.CHANNEL_READ_HYPE_TRAIN,
+                 AuthScope.MODERATOR_READ_CHATTERS,
                  AuthScope.MODERATOR_READ_FOLLOWERS,
                  AuthScope.MODERATOR_MANAGE_SHOUTOUTS,
-                 AuthScope.CHANNEL_SUBSCRIPTIONS,
+                 AuthScope.CHANNEL_MANAGE_REDEMPTIONS,
                  AuthScope.CHANNEL_READ_SUBSCRIPTIONS,
-                 AuthScope.MODERATOR_READ_CHATTERS]
+                 AuthScope.CHANNEL_MANAGE_PREDICTIONS,
+                 AuthScope.CHANNEL_READ_PREDICTIONS]  #Attempting this to alleviate prediction issues
 twitch_bot = Twitch(id_twitch_client, id_twitch_secret)
 
 if getattr(sys, 'frozen', False):
@@ -53,59 +57,48 @@ Path(data_directory).mkdir(parents=True, exist_ok=True)
 Path(logs_directory).mkdir(parents=True, exist_ok=True)
 
 
-async def points_transfer(direction, transfer_value, chatter_document, chatter_document_discord):
-    transfer_value = int(transfer_value)
-    if direction == "twitch":
-        if transfer_value > chatter_document_discord['points_value']:
-            await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"You do not have enough discord points to transfer. You have {chatter_document_discord['points_value']} points")
-            return
-        new_discord_points = chatter_document_discord['points_value'] - transfer_value
-        chatter_document_discord.update(points_value=new_discord_points)
-        chatter_document_discord.save()
-        new_twitch_points = chatter_document['user_points'] + transfer_value
-        chatter_document.update(user_points=new_twitch_points)
-        chatter_document.save()
-        await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"Transferred {transfer_value} to your twitch profile.")
-    elif direction == "discord":
-        if transfer_value > chatter_document['user_points']:
-            await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"You do not have enough discord points to transfer. You have {chatter_document['user_points']} points")
-            return
-        new_discord_points = chatter_document_discord['points_value'] + transfer_value
-        chatter_document_discord.update(points_value=new_discord_points)
-        chatter_document_discord.save()
-        new_twitch_points = chatter_document['user_points'] - transfer_value
-        chatter_document.update(user_points=new_twitch_points)
-        chatter_document.save()
-        await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"Transferred {transfer_value} to your discord profile.")
-    else:
-        await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"Backend Mess up.... {direction} is thee direction")
+async def on_stream_ad_start(data: ChannelAdBreakBeginEvent):
+    try:
+        if data.event.is_automatic:
+            auto_response = f"This is a automatically scheduled ad break"
+        else:
+            auto_response = f"This is a manually ran ad to attempt to time things better"
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Incoming ad break\n{auto_response} and should only last {data.event.duration_seconds} seconds.")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_ad_start' -- {e}")
         return
 
 
-def twitch_points_transfer(chatter_document, value: int, add: bool = True):
-    if add:
-        new_user_points = chatter_document['user_points'] + value
-    else:
-        new_user_points = chatter_document['user_points'] - value
-    chatter_document.update(user_points=new_user_points)
-    chatter_document.save()
-
-
-async def on_stream_start(data: StreamOnlineEvent):
-    await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"{data.event.broadcaster_user_name} is now online! Gather one, gather all.")
-
-
-async def on_stream_ad_start(data: ChannelAdBreakBeginEvent):
-    if data.event.is_automatic:
-        auto_response = f"This is a automatically scheduled ad break"
-    else:
-        auto_response = f"This is a manually ran ad to attempt to time things better"
-    await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"Incoming ad break\n{auto_response} and should only last {data.event.duration_seconds} seconds.")
-
-
-async def on_stream_message(data: ChannelChatMessageEvent):  # ToDo: Add .startswith for cheer, to multiply points added later on
+async def on_stream_chat_message(data: ChannelChatMessageEvent):  # ToDo: Add .startswith for cheer, to multiply points added later on
     try:
-        if data.event.chatter_user_id == id_theechody_account:
+        def get_last_chatter():
+            try:
+                last_chatter_name = "'--NO_NAME_AT_ALL--'"
+                with open(chat_log, "r") as file:
+                    chat_logs = file.read()
+                chat_logs = list(map(str, chat_logs.splitlines()))
+                for last in reversed(chat_logs):
+                    if last.startswith(id_broadcaster_account):
+                        pass
+                    else:
+                        last_chatter_id, last_chatter_name = last.split("/", maxsplit=1)
+                        last_chatter_name, last_chatter_message = last_chatter_name.split(": ", maxsplit=1)
+                        break
+                return last_chatter_name
+            except Exception as f:
+                print(f"Error in get_last_chatter - via on_stream_chat_message -- {f}")
+                return ""
+
+        message_starts_with = (f"{data.event.broadcaster_user_name}",
+                               f"@{data.event.broadcaster_user_name}",
+                               f"{get_last_chatter()}",
+                               f"Bitties 4 Titties Leaderboard: ",
+                               f"I couldn't ID ",
+                               f"You do not have enough ",
+                               f"Transferred ",
+                               f"Backend Mess up ")
+        if data.event.chatter_user_id == id_broadcaster_account and data.event.message.text.startswith(message_starts_with):
             return
         message_add_points = 10
         chatter_username = data.event.chatter_user_name
@@ -113,7 +106,14 @@ async def on_stream_message(data: ChannelChatMessageEvent):  # ToDo: Add .starts
         if chatter_document is None:
             logger.error(f"Chatter Document is None!! -- {data.event.chatter_user_id}/{data.event.chatter_user_name}/{data.event.chatter_user_login}")
             pass
-        if data.event.message.text in ("!lastcomment", "!last comment", "!lastmessage", "!last message"):
+        if data.event.message.text in ("!leaderbitties", "!leader bitties", "!leaderbits", "!leader bits"):
+            bits_lb = await twitch_bot.get_bits_leaderboard()
+            print(bits_lb.total)
+            users_board = ""
+            for user in bits_lb:
+                users_board += f"#{user.rank:02d} - {user.user_name}: {user.score} - "
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Bitties 4 Titties Leaderboard: {users_board[:-3]}")
+        elif data.event.message.text in ("!lastcomment", "!last comment", "!lastmessage", "!last message"):
             last_message = None
             try:
                 with open(chat_log, "r") as file:
@@ -121,18 +121,18 @@ async def on_stream_message(data: ChannelChatMessageEvent):  # ToDo: Add .starts
                 chat_logs = list(map(str, chat_logs.splitlines()))
                 for last in reversed(chat_logs):
                     if last.startswith(data.event.chatter_user_id):
-                        last_message = last.lstrip(f"{data.event.chatter_user_id}: ")
+                        user_name, last_message = last.split(": ", maxsplit=1)
                         break
             except Exception as f:
                 formatted_time = fortime()
                 logger.error(f"{formatted_time}: Error fetching last message -- {f}")
                 return
-            await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"@TheeChody!!!! {chatter_username}'s last message was:\n{last_message if not None else 'Not Found!!!'}")
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"@{data.event.broadcaster_user_name}!!!! {chatter_username}'s last message was:\n{last_message if not None else 'Not Found!!!'}")
             return
         elif data.event.message.text.startswith("!pt"):
             try:
                 if chatter_document['user_discord_id'] == 0:
-                    await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"{chatter_username} you do not have your discord ID linked to your twitch yet")
+                    await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} you do not have your discord ID linked to your twitch yet")
                     return
                 chatter_document_discord = await get_discord_document(chatter_document)
                 if chatter_document_discord is None:
@@ -142,7 +142,7 @@ async def on_stream_message(data: ChannelChatMessageEvent):  # ToDo: Add .starts
                     if transfer_value.isdigit():
                         await points_transfer("twitch", transfer_value, chatter_document, chatter_document_discord)
                     else:
-                        await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"I couldn't ID thee number you're betting with")
+                        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"I couldn't ID thee number you're betting with")
                         print(f"--{transfer_value}--{type(transfer_value)}")
                         return
                 elif data.event.message.text.lstrip("!pt ").startswith("discord"):
@@ -150,7 +150,7 @@ async def on_stream_message(data: ChannelChatMessageEvent):  # ToDo: Add .starts
                     if transfer_value.isdigit():
                         await points_transfer("discord", transfer_value, chatter_document, chatter_document_discord)
                     else:
-                        await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"I couldn't ID thee number you're betting with")
+                        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"I couldn't ID thee number you're betting with")
                         print(f"--{transfer_value}--{type(transfer_value)}")
                         return
             except Exception as f:
@@ -162,124 +162,328 @@ async def on_stream_message(data: ChannelChatMessageEvent):  # ToDo: Add .starts
                     bet_value = int(bet_value)
                 else:
                     print(f"--{bet_value}")
-                    await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"{chatter_username} your command should resemble '!gamble 100' where 100, put your bet value. Try again")
+                    await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} your command should resemble '!gamble 100' where 100, put your bet value. Try again")
                     return
                 print(f"{bet_value} vs {chatter_document['user_points']}")
                 if bet_value > chatter_document['user_points']:
-                    await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"{chatter_username} you do not have enough points to bet that. You currently have {chatter_document['user_points']}")
+                    await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} you do not have enough points to bet that. You currently have {chatter_document['user_points']}")
                     return
                 elif bet_value <= chatter_document['user_points']:
                     if pr.prob(97.5/100):
                         response = f"lost {bet_value}"
                         new_points_value = chatter_document['user_points'] - bet_value
-                        twitch_points_transfer(chatter_document, bet_value, False)
-                        await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"{chatter_username} you lost thee gamble, I ate your points. They tasted yummy! You now have {new_points_value} points.")
+                        await twitch_points_transfer(chatter_document, bet_value, False)
+                        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} you lost thee gamble, I ate your points. They tasted yummy! You now have {new_points_value} points.")
                     else:
                         won_amount = bet_value * 10000
                         response = f"won {won_amount} with a bet of {bet_value}"
                         new_points_value = chatter_document['user_points'] + won_amount
-                        twitch_points_transfer(chatter_document, won_amount)
-                        await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"{chatter_username} you won {won_amount} making your new total {new_points_value}!! Congratz!!!")
+                        await twitch_points_transfer(chatter_document, won_amount)
+                        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} you won thee gamble, winning {won_amount} making your new total {new_points_value}!! Congratz!!!")
                     formatted_time = fortime()
                     gamble_logger.info(f"{formatted_time}: {chatter_username}/{data.event.chatter_user_id} gambled and {response}.")
             except Exception as f:
                 formatted_time = fortime()
                 gamble_logger.error(f"{formatted_time}: Error in gamble command -- {f}")
-                await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"{chatter_username} something wen't wrong, TheeChody will fix it sooner than later. Error logged in thee background")
+                await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} something wen't wrong, TheeChody will fix it sooner than later. Error logged in thee background")
                 return
         else:
-            twitch_points_transfer(chatter_document, message_add_points)
-            chat_logger.info(f"{data.event.chatter_user_id}: {data.event.message.text if data.event.message_type == 'text' else 'not a text message'}")
+            await twitch_points_transfer(chatter_document, message_add_points)
+            chat_logger.info(f"{data.event.chatter_user_id}/{data.event.chatter_user_name}: {data.event.message.text if data.event.message_type == 'text' else 'not a text message'}")
     except Exception as e:
         formatted_time = fortime()
-        logger.error(f"{formatted_time}: Error in on_stream_message -- {e}")
-        await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"Something went wrong in thee backend, error logged. Try again later")
+        logger.error(f"{formatted_time}: Error in on_stream_chat_message -- {e}")
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Something went wrong in thee backend, error logged. Try again later")
+        return
+
+
+async def on_stream_chat_notification(data: ChannelChatNotificationEvent):
+    """
+    - sub
+    - resub
+    - sub_gift
+    - community_sub_gift
+    - gift_paid_upgrade
+    - prime_paid_upgrade
+    - raid
+    - unraid
+    - pay_it_forward
+    - announcement
+    - bits_badge_tier
+    - charity_donation"""
+    try:
+        if data.event.notice_type == "resub":
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} is on a {data.event.resub.streak_months} streak! {data.event.resub.cumulative_months} total months subscribed. Much Love <3")
+        else:
+            print(f"on_stream_chat_notification -- {data.event.notice_type}")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in on_stream_chat_notification -- {e}")
+        return
+
+
+async def on_stream_cheer(data: ChannelCheerEvent):
+    try:
+        if data.event.is_anonymous:
+            user = "Anonymous"
+        else:
+            user = data.event.user_name
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{user} has cheered {data.event.bits}")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_cheer' -- {e}")
         return
 
 
 async def on_stream_follow(data: ChannelFollowEvent):
-    print(f"raw data:\n{data.event.user_id}\n{data.event.user_name}\n{data.event.broadcaster_user_id}\n{data.event.broadcaster_user_name}")
-    print(f"data types:\n{type(data.event.user_id)}\n{type(data.event.user_name)}\n{type(data.event.broadcaster_user_id)}\n{type(data.event.broadcaster_user_name)}")
-    await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"Welcome in {data.event.user_name} to Thee Chodeling's Nest!")
+    try:
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Welcome {data.event.user_name} to Thee Chodeling's Nest!")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_follow' -- {e}")
+        return
 
 
-async def on_stream_channel_point_redemption(data: ChannelPointsCustomRewardRedemptionAddEvent):
-    await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"{data.event.user_name} used {data.event.reward.cost} Theebucks to redeem {data.event.reward.title}")
+async def on_stream_hype_begin(data: HypeTrainEvent):
+    try:
+        channel_document = await get_channel_document(data)
+        if channel_document is None:
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Error grabbing/creating channel document. Try again later")
+            return
+        channel_document.update(hype_train_current=True, hype_train_current_level=data.event.level)
+        channel_document.save()
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Choo Choooooooo!! Hype train started by {data.event.last_contribution.user_name}.")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_hype_begin' -- {e}")
+        return
 
 
-async def on_stream_poll_start(data: ChannelPollBeginEvent):
-    choices = ""
-    for n, choice in enumerate(data.event.choices):
-        choices += f"{n+1}: {choice.title} - "
-    await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"Poll '{data.event.title}' has started. Choices are: {choices[:-3]}. Poll will end at {data.event.ends_at.astimezone().strftime('%H:%M:%S')} MST. Voting with extra channel points is {'enabled' if data.event.channel_points_voting.is_enabled else 'disabled'}")
+async def on_stream_hype_end(data: HypeTrainEndEvent):
+    try:
+        channel_document = await get_channel_document(data)
+        if channel_document is None:
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Error grabbing/creating channel document. Try again later")
+            return
+        formatted_time = fortime()
+        channel_document.update(hype_train_last=formatted_time, hype_train_current=False, hype_train_current_level=0, hype_train_record_level=data.event.level)
+        channel_document.save()
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Hype Train Completed @ {data.event.level}!! Much Love To All <3")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_hype_end' -- {e}")
+        return
+
+
+async def on_stream_hype_progress(data: HypeTrainEvent):
+    try:
+        channel_document = await get_channel_document(data)
+        if channel_document is None:
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Error grabbing/creating channel document. Try again later")
+            return
+        if data.event.level > channel_document['hype_train_current_level']:
+            new_hype_train_current_level = data.event.level
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"New Hype Train Level!! Currently @ {data.event.level}")
+        else:
+            new_hype_train_current_level = channel_document['hype_train_current_level']
+        if new_hype_train_current_level > channel_document['hype_train_record_level']:
+            new_hype_train_record_level = data.event.level
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"New Hype Train Record Level!!!!! Record Now @ {data.event.level}")
+        else:
+            new_hype_train_record_level = channel_document['hype_train_record_level']
+        channel_document.update(hype_train_current_level=new_hype_train_current_level, hype_train_record_level=new_hype_train_record_level)
+        channel_document.save()
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_hype_progress' -- {e}")
+        return
+
+
+async def on_stream_poll_begin(data: ChannelPollBeginEvent):
+    try:
+        choices = ""
+        for n, choice in enumerate(data.event.choices):
+            choices += f"{n+1}: {choice.title} - "
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Poll '{data.event.title}' has started. Choices are: {choices[:-3]}. Poll will end at {data.event.ends_at.astimezone().strftime('%H:%M:%S')} MST. Voting with extra channel points is {'enabled' if data.event.channel_points_voting.is_enabled else 'disabled'}")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_poll_begin' -- {e}")
+        return
 
 
 async def on_stream_poll_end(data: ChannelPollEndEvent):
-    if data.event.status == "archived":
-        pass
-    else:
-        await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"Poll '{data.event.title}' has ended with status: {data.event.status}.")
+    try:
+        if data.event.status == "archived":
+            pass
+        else:
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Poll '{data.event.title}' has ended with status: {data.event.status}.")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_poll_end' -- {e}")
+        return
+
+
+async def on_stream_point_redemption(data: ChannelPointsCustomRewardRedemptionAddEvent):
+    try:
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.user_name} used {data.event.reward.cost} Theebucks to redeem {data.event.reward.title}")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_point_redemption' -- {e}")
+        return
+
+
+async def on_stream_prediction_begin(data: ChannelPredictionEvent):
+    try:
+        outcomes = ""
+        for n, outcome in enumerate(data.event.outcomes):
+            outcomes += f"{n+1}: {outcome.title} - "
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Prediction '{data.event.title}' has started. Choices are: {outcomes[:-3]}. Prediction will end at {data.event.locks_at.astimezone().strftime('%H:%M:%S')} MST.")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_prediction_begin' -- {e}")
+        return
+
+
+async def on_stream_prediction_end(data: ChannelPredictionEndEvent):
+    try:
+        print(data.event.winning_outcome_id)
+        if data.event.status == "archived":
+            print('arch')
+            pass
+        else:
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Prediction '{data.event.title}' has ended with status: {data.event.status}.")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_prediction_end' -- {e}")
+        return
+
+
+async def on_stream_prediction_lock(data: ChannelPredictionEvent):
+    try:
+        print(data.event.title)
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_prediction_lock' -- {e}")
+        return
 
 
 async def on_stream_subbie(data: ChannelSubscribeEvent):
-    await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"{data.event.user_name} subscribed to Thee Nest.\nMuch Love, Thank You :)")
+    try:
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.user_name} subscribed to Thee Nest.\nMuch Love, Thank You :)")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_subbie' -- {e}")
+        return
 
 
 async def on_stream_subbie_gift(data: ChannelSubscriptionGiftEvent):
-    if data.event.is_anonymous:
-        user = "Anonymous"
-        response = f"Thank You :) Much Love <3"
-    else:
-        user = data.event.user_name
-        response = f"Giving them a total of {data.event.cumulative_total} gifted subbies. Thank You :) Much Love <3"
-    await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"{user} gifted out {data.event.total} to Thee Chodelings. {response}")
-
-
-async def on_stream_cheer(data: ChannelCheerEvent):
-    if data.event.is_anonymous:
-        user = "Anonymous"
-    else:
-        user = data.event.user_name
-    await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"{user} has cheered {data.event.bits}")
+    try:
+        if data.event.is_anonymous:
+            user = "Anonymous"
+            response = f"Thank You :) Much Love <3"
+        else:
+            user = data.event.user_name
+            response = f"Giving them a total of {data.event.cumulative_total} gifted subbies. Thank You :) Much Love <3"
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{user} gifted out {data.event.total} {'subbie' if data.event.total == 1 else 'subbies'} to Thee Chodelings. {response}")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_subbie_gift' -- {e}")
+        return
 
 
 async def on_stream_raid_in(data: ChannelRaidEvent):
-    await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"{data.event.from_broadcaster_user_name} raid with {data.event.viewers} incoming!!!\nGo show them some love back y'all")
-    # if data.event.viewers > 1:
-    await twitch_bot.send_a_shoutout(id_theechody_account, data.event.from_broadcaster_user_id, id_theechody_account)
+    try:
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.from_broadcaster_user_name} raid with {data.event.viewers} incoming!!!\nGo show them some love back y'all")
+        await twitch_bot.send_a_shoutout(id_broadcaster_account, data.event.from_broadcaster_user_id, id_broadcaster_account)
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_raid_in' -- {e}")
+        return
 
 
 async def on_stream_raid_out(data: ChannelRaidEvent):
-    await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"{data.event.from_broadcaster_user_name} has sent thee raid with {data.event.viewers} to https://twitch.tv/{data.event.to_broadcaster_user_name}")
+    try:
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.from_broadcaster_user_name} has sent thee raid with {data.event.viewers} to https://twitch.tv/{data.event.to_broadcaster_user_name}")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_raid_out' -- {e}")
+        return
+
+
+async def on_stream_update(data: ChannelUpdateEvent):
+    try:
+        channel_document = await get_channel_document(data)
+        if channel_document is None:
+            formatted_time = fortime()
+            logger.info(f"{formatted_time}: Channel Document is NONE!!!")
+            return
+        if channel_document['channel_title'] != data.event.title:
+            title_response = f"Title Change to {data.event.title} --"
+            channel_document.update(channel_title=data.event.title)
+            channel_document.save()
+        else:
+            title_response = f""
+        if channel_document['channel_game_id'] != data.event.category_id:
+            game_response = f"Category Change to {data.event.category_name} --"
+            channel_document.update(channel_game=data.event.category_name, channel_game_id=data.event.category_id)
+            channel_document.save()
+        else:
+            game_response = f""
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Channel Update: {title_response} {game_response}")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_update' -- {e}")
+        return
+
+
+async def on_stream_start(data: StreamOnlineEvent):
+    try:
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.broadcaster_user_name} is now online! Gather one, gather all.")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_start' -- {e}")
+        return
 
 
 async def on_stream_end(data: StreamOfflineEvent):
-    await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"{data.event.broadcaster_user_name} has faded into thee shadows. Much Love All")
+    try:
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.broadcaster_user_name} has faded into thee shadows. Much Love All")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in 'on_stream_end' -- {e}")
+        return
 
 
 async def run():
     twitch_helper = UserAuthenticationStorageHelper(twitch_bot, target_scopes)
     await twitch_helper.bind()
 
-    user = await first(twitch_bot.get_users())
+    user = await first(twitch_bot.get_users(user_ids=id_broadcaster_account))  # Don't think I need this, however, I feel more comfortable knowing 100% it's grabbing my account, and not some random somehow by mistake...
 
     event_sub = EventSubWebsocket(twitch_bot)
     event_sub.start()
 
-    # await event_sub.listen_extension_bits_transaction_create()
-    await event_sub.listen_stream_online(id_theechody_account, on_stream_start)
-    await event_sub.listen_channel_ad_break_begin(id_theechody_account, on_stream_ad_start)
-    await event_sub.listen_channel_follow_v2(id_theechody_account, user.id, on_stream_follow)
-    await event_sub.listen_channel_chat_message(id_theechody_account, user.id, on_stream_message)
-    await event_sub.listen_channel_points_custom_reward_redemption_add(id_theechody_account, on_stream_channel_point_redemption)
-    await event_sub.listen_channel_poll_begin(id_theechody_account, on_stream_poll_start)
-    await event_sub.listen_channel_poll_end(id_theechody_account, on_stream_poll_end)
-    await event_sub.listen_channel_subscribe(id_theechody_account, on_stream_subbie)
-    await event_sub.listen_channel_subscription_gift(id_theechody_account, on_stream_subbie_gift)
-    await event_sub.listen_channel_cheer(id_theechody_account, on_stream_cheer)
-    await event_sub.listen_channel_raid(on_stream_raid_in, to_broadcaster_user_id=id_theechody_account)
-    await event_sub.listen_channel_raid(on_stream_raid_out, from_broadcaster_user_id=id_theechody_account)
-    await event_sub.listen_stream_offline(id_theechody_account, on_stream_end)
+    await event_sub.listen_channel_ad_break_begin(user.id, on_stream_ad_start)
+    await event_sub.listen_channel_chat_message(user.id, user.id, on_stream_chat_message)
+    await event_sub.listen_channel_chat_notification(user.id, user.id, on_stream_chat_notification)
+    await event_sub.listen_channel_cheer(user.id, on_stream_cheer)
+    await event_sub.listen_channel_follow_v2(user.id, user.id, on_stream_follow)
+    await event_sub.listen_hype_train_begin(user.id, on_stream_hype_begin)
+    await event_sub.listen_hype_train_end(user.id, on_stream_hype_end)
+    await event_sub.listen_hype_train_progress(user.id, on_stream_hype_progress)
+    await event_sub.listen_channel_poll_begin(user.id, on_stream_poll_begin)
+    await event_sub.listen_channel_poll_end(user.id, on_stream_poll_end)
+    await event_sub.listen_channel_points_custom_reward_redemption_add(user.id, on_stream_point_redemption)
+    await event_sub.listen_channel_prediction_begin(user.id, on_stream_prediction_begin)
+    # await event_sub.listen_channel_prediction_end(user.id, on_stream_prediction_end)  # ToDo: Find out why this is broke!!!! -- TypeError: twitchAPI.object.eventsub.TopPredictors() argument after ** must be a mapping, not list
+    # await event_sub.listen_channel_prediction_lock(user.id, on_stream_prediction_lock)  # This one is fucking broke too... Same error ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    await event_sub.listen_channel_subscribe(user.id, on_stream_subbie)
+    await event_sub.listen_channel_subscription_gift(user.id, on_stream_subbie_gift)
+    await event_sub.listen_channel_raid(on_stream_raid_in, to_broadcaster_user_id=user.id)
+    await event_sub.listen_channel_raid(on_stream_raid_out, from_broadcaster_user_id=user.id)
+    await event_sub.listen_channel_update_v2(user.id, on_stream_update)
+    await event_sub.listen_stream_online(user.id, on_stream_start)
+    await event_sub.listen_stream_offline(user.id, on_stream_end)
 
     while True:
         async def shutdown():
@@ -288,6 +492,7 @@ async def run():
                 await event_sub.stop()
                 await twitch_bot.close()
                 await disconnect_mongo()
+                await asyncio.sleep(1)
                 print("Processes shut down successfully")
             except Exception as e:
                 print(f"Error in shutdown() -- {e}")
@@ -323,15 +528,140 @@ def fortime():
         return None
 
 
+async def points_transfer(direction, transfer_value, chatter_document, chatter_document_discord):
+    try:
+        if None in (chatter_document, chatter_document_discord):
+            return
+        transfer_value = int(transfer_value)
+        if direction == "twitch":
+            if transfer_value > chatter_document_discord['points_value']:
+                await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"You do not have enough discord points to transfer. You have {chatter_document_discord['points_value']} points")
+                return
+            new_discord_points = chatter_document_discord['points_value'] - transfer_value
+            chatter_document_discord.update(points_value=new_discord_points)
+            chatter_document_discord.save()
+            new_twitch_points = chatter_document['user_points'] + transfer_value
+            chatter_document.update(user_points=new_twitch_points)
+            chatter_document.save()
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Transferred {transfer_value} to your twitch profile.")
+        elif direction == "discord":
+            if transfer_value > chatter_document['user_points']:
+                await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"You do not have enough discord points to transfer. You have {chatter_document['user_points']} points")
+                return
+            new_discord_points = chatter_document_discord['points_value'] + transfer_value
+            chatter_document_discord.update(points_value=new_discord_points)
+            chatter_document_discord.save()
+            new_twitch_points = chatter_document['user_points'] - transfer_value
+            chatter_document.update(user_points=new_twitch_points)
+            chatter_document.save()
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Transferred {transfer_value} to your discord profile.")
+        else:
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Backend Mess up.... {direction} is thee direction")
+            return
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in points_transfer -- {chatter_document['user_id']}/{chatter_document['user_name']}/{chatter_document['user_login']}/{chatter_document['user_discord_id']} -- {chatter_document_discord['author_id']}/{chatter_document_discord['author_name']}/{chatter_document_discord['guild_name']}/{chatter_document_discord['twitch_id']} -- {e}")
+        return
+
+
+async def twitch_points_transfer(chatter_document, value: int, add: bool = True):
+    try:
+        formatted_time = fortime()
+        if add:
+            new_user_points = chatter_document['user_points'] + value
+        else:
+            new_user_points = chatter_document['user_points'] - value
+        chatter_document.update(user_points=new_user_points, latest_chat_date=formatted_time)
+        chatter_document.save()
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in twitch_points_transfer -- {chatter_document['user_id']}/{chatter_document['user_name']}/{chatter_document['user_login']} -- {e}")
+        return
+
+
+async def get_channel_document(data):
+    try:
+        channel_collection = twitch_database.twitch.get_collection('channel')
+        try:
+            channel_document = Channel(user_id=data.event.broadcaster_user_id)
+        except Exception as f:
+            if FileNotFoundError:
+                try:
+                    new_channel_document = Channel(user_id=data.event.broadcaster_user_id, user_name=data.event.broadcaster_user_name,
+                                                   user_login=data.event.broadcaster_user_login)
+                    new_channel_document_dict = new_channel_document.to_mongo()
+                    channel_collection.insert_one(new_channel_document_dict)
+                    channel_document = Channel(user_id=data.event.broadcaster_user_id)
+                    pass
+                except Exception as g:
+                    formatted_time = fortime()
+                    logger.error(f"{formatted_time}: Error creating new document for channel -- {data.event.broadcaster_user_id}/{data.event.broadcaster_user_name}/{data.event.broadcaster_user_login} -- {g}")
+                    return None
+            else:
+                formatted_time = fortime()
+                logger.error(f"{formatted_time}: Error fetching/creating channel document -- {data.event.broadcaster_user_id}/{data.event.broadcaster_user_name}/{data.event.broadcaster_user_login} -- {f}")
+                return None
+        return channel_document
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in get_channel_document -- Data Type -- {type(data)} -- {e}")
+        return None
+
+
+async def get_chatter_document(data):
+    try:
+        users_collection = twitch_database.twitch.get_collection('users')
+        try:
+            chatter_document = Users.objects.get(user_id=data.event.chatter_user_id)
+        except Exception as f:
+            if FileNotFoundError:
+                try:
+                    formatted_time = fortime()
+                    new_chatter_document = Users(user_id=data.event.chatter_user_id, user_name=data.event.chatter_user_name,
+                                                 user_login=data.event.chatter_user_login, first_chat_date=formatted_time)
+                    new_chatter_document_dict = new_chatter_document.to_mongo()
+                    users_collection.insert_one(new_chatter_document_dict)
+                    chatter_document = Users.objects.get(user_id=data.event.chatter_user_id)
+                    pass
+                except Exception as g:
+                    formatted_time = fortime()
+                    logger.error(f"{formatted_time}: Error creating new document for user -- {data.event.chatter_user_name} - {data.event.chatter_user_id}\n{g}")
+                    return None
+            else:
+                formatted_time = fortime()
+                logger.error(f"{formatted_time}: Error reading/creating new document for user -- {data.event.chatter_user_name} - {data.event.chatter_user_id}\n{f}")
+                return None
+        return chatter_document
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in get_chatter_document -- Data Type -- {type(data)} -- {e}")
+        return None
+
+
+async def get_discord_document(chatter_document):
+    try:
+        discord_economy_collection = discord_database.channel_ids.get_collection('economy_data')
+        if discord_economy_collection.find_one({"_id": chatter_document['user_discord_id']}):
+            chatter_document_discord = EconomyData.objects.get(author_id=chatter_document['user_discord_id'])
+            return chatter_document_discord
+        else:
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"You do not have a document in a server TheeChodebot is in as well.")
+            return None
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error in get_discord_document -- {chatter_document['user_id']}/{chatter_document['user_name']}/{chatter_document['user_login']}/{chatter_document['user_discord_id']} -- {e}")
+        return None
+
+
 def connect_mongo(db, alias):
     try:
         client = connect(db=db, host=mongo_login_string, alias=alias)
         formatted_time = fortime()
-        logger.info(f"{long_dashes}\n{formatted_time}: MongoDB Connected")
+        logger.info(f"{formatted_time}: MongoDB Connected\n{long_dashes}")
         time.sleep(1)
         client.get_default_database(db)
         formatted_time = fortime()
-        logger.info(f"{long_dashes}\n{formatted_time}: Database Loaded")
+        logger.info(f"{formatted_time}: Database Loaded\n{long_dashes}")
         return client
     except Exception as e:
         formatted_time = fortime()
@@ -342,74 +672,47 @@ def connect_mongo(db, alias):
 async def disconnect_mongo():
     try:
         disconnect_all()
-        logger.info(f"{long_dashes}\nDisconnected from MongoDB")
+        logger.info(f"{long_dashes}\nDisconnected from MongoDB\n{long_dashes}")
     except Exception as e:
         formatted_time = fortime()
         logger.error(f"{formatted_time}: Error Disconnection MongoDB -- {e}")
         return
 
 
-def connect_database(client, database):
-    client.get_database(database)
-    formatted_time = fortime()
-    logger.info(f"{long_dashes}\n{formatted_time}: Database {database} loaded")
-    return client
-
-
-async def get_chatter_document(data):
-    users_collection = twitch_database.twitch.get_collection('users')
-    try:
-        chatter_document = Users.objects.get(user_id=data.event.chatter_user_id)
-    except Exception as e:
-        if FileNotFoundError:
-            try:
-                formatted_time = fortime()
-                new_chatter_document = Users(user_id=data.event.chatter_user_id, user_name=data.event.chatter_user_name,
-                                             user_login=data.event.chatter_user_login, first_chat_date=formatted_time)
-                new_chatter_document_dict = new_chatter_document.to_mongo()
-                users_collection.insert_one(new_chatter_document_dict)
-                chatter_document = Users.objects.get(user_id=data.event.chatter_user_id)
-                pass
-            except Exception as f:
-                formatted_time = fortime()
-                logger.error(f"{formatted_time}: Error creating new document for user -- {data.event.chatter_user_name} - {data.event.chatter_user_id}\n{f}")
-                return None
-        else:
-            formatted_time = fortime()
-            logger.error(f"{formatted_time}: Error reading/creating new document for user -- {data.event.chatter_user_name} - {data.event.chatter_user_id}\n{e}")
-            return None
-    return chatter_document
-
-
-async def get_discord_document(chatter_document):
-    discord_economy_collection = discord_database.channel_ids.get_collection('economy_data')
-    if discord_economy_collection.find_one({"_id": chatter_document['user_discord_id']}):
-        chatter_document_discord = EconomyData.objects.get(author_id=chatter_document['user_discord_id'])
-        return chatter_document_discord
-    else:
-        await twitch_bot.send_chat_message(id_theechody_account, id_theechody_account, f"You do not have a document in a server TheeChodebot is in as well.")
-        return None
-
-
 def setup_logger(name, log_file, level=logging.INFO):
-    handler = logging.FileHandler(f"{logs_directory}{log_file}")
-    console_handler = logging.StreamHandler()
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-    logger.addHandler(handler)
-    logger.addHandler(console_handler)
-    return logger
+    try:
+        handler = logging.FileHandler(f"{logs_directory}{log_file}")
+        console_handler = logging.StreamHandler()
+        logger = logging.getLogger(name)
+        logger.setLevel(level)
+        logger.addHandler(handler)
+        logger.addHandler(console_handler)
+        return logger
+    except Exception as e:
+        formatted_time = fortime()
+        print(f"{formatted_time}: ERROR in setup_logger -- {name}/{log_file}/{level} -- {e}")
+        return None
 
 
 logger = setup_logger('logger', 'log.log')
 chat_logger = setup_logger('chat_logger', 'chat_log.log')
 gamble_logger = setup_logger('gamble_logger', 'gamble_log.log')
 
+if None in (logger, chat_logger, gamble_logger):
+    print(f"One of thee loggers isn't setup right -- {logger}/{chat_logger}/{gamble_logger} -- Quitting program")
+    quit()
+
 try:
+    logger.info(long_dashes)
     twitch_database = connect_mongo(mongo_twitch_collection, DEFAULT_CONNECTION_NAME)
     time.sleep(1)
     discord_database = connect_mongo(mongo_discord_collection, "Discord_Database")
     time.sleep(1)
+    if None in (twitch_database, discord_database):
+        disconnect_mongo()
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error connecting one of thee databases -- {twitch_database}/{discord_database} -- Quitting program")
+        quit()
 except Exception as e:
     formatted_time = fortime()
     logger.error(f"{formatted_time}: Error Loading Twitch Database -- {e}")

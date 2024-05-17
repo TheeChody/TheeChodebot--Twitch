@@ -1,4 +1,18 @@
-from mongoengine import Document, IntField, DynamicField, DateTimeField
+from mongoengine import Document, BooleanField, IntField, DynamicField, ListField, DateTimeField
+
+
+class Channel(Document):
+    user_id = IntField(primary_key=True)
+    user_name = DynamicField(default="")
+    user_login = DynamicField(default="")
+    channel_title = DynamicField(default="")
+    channel_game = DynamicField(default="")
+    channel_game_id = DynamicField(default=0)
+    channel_content_class = ListField(default=[])
+    hype_train_last = DynamicField(default="")
+    hype_train_current = BooleanField(default=False)
+    hype_train_current_level = IntField(default=0)
+    hype_train_record_level = IntField(default=0)
 
 
 class Users(Document):

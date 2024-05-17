@@ -1,3 +1,8 @@
+"""
+This ain't in use...
+Just kept thee code incase I give this another try
+"""
+
 customtkinter.set_appearance_mode("System")
 customtkinter.set_default_color_theme("green")
 

@@ -1,7 +1,9 @@
 import os
 import sys
 import time
+import keyboard
 import datetime
+import threading
 from pathlib import Path
 # from chodebot import data_directory
 
@@ -70,16 +72,62 @@ def write_clock(seconds: int, add: bool = False):
             return
 
 
-def countdown(total_seconds):
+def countdown(total_seconds, paused=False):
     time.sleep(1)
     while total_seconds >= 1:
-        write_clock(1)
-        timer = read_clock()
-        total_seconds = get_sec(timer)
-        print(timer), time.sleep(1)
-    print("Bzzzt! The countdown is at zero seconds!")
-    with open(clock, "w") as file:
-        file.write(clock_reset_time)
+        try:
+            write_clock(1)
+            timer = read_clock()
+            total_seconds = get_sec(timer)
+            print(timer), time.sleep(1)
+        except KeyboardInterrupt:
+            paused = True
+            break
+    if not paused:
+        print("Bzzzt! The countdown is at zero seconds!")
+        with open(clock, "w") as file:
+            file.write(clock_reset_time)
+
+
+# class CountDown:  # ToDo: Try This With A CustomTkinter App?????????????????????????????????????????????????
+#     def __init__(self):
+#         self.was_paused = False
+#         self.is_running = True
+#         self.timer = f"0:00:00"
+#         self.total_seconds = 0
+#
+#     def countdown(self):
+#         print(self.timer, self.total_seconds)
+#         self.initiate()
+#         print(self.timer, self.total_seconds)
+#         time.sleep(1)
+#         while self.total_seconds >= 1:
+#             write_clock(1)
+#             self.timer = read_clock()
+#             self.total_seconds = get_sec(self.timer)
+#             print(timer), time.sleep(1)
+#             if not self.is_running:
+#                 break
+#         if not self.was_paused:
+#             print("Bzzzt! The countdown is at zero seconds!")
+#             with open(clock, "w") as file:
+#                 file.write(clock_reset_time)
+#
+#     def initiate(self):
+#         with open(clock, "r") as file:
+#             self.timer = file.read()
+#         self.total_seconds = get_sec(self.timer)
+#
+#     def start(self):
+#         self.initiate()
+#         if not self.is_running:
+#             self.is_running = True
+#             self.countdown()
+#
+#     def stop(self):
+#         if self.is_running:
+#             self.was_paused = True
+#             self.is_running = False
 
 
 try:
@@ -112,9 +160,28 @@ while True:
         continue
 
 
+# paused = False
 timer = read_clock()
 total_seconds = get_sec(timer)
 print(timer, total_seconds)  # DEBUGGING
+countdown(total_seconds)
+
+# def main_loop():
+#     timer = CountDown()
+#     keyboard.add_hotkey("s", timer.start)
+#     keyboard.add_hotkey("p", timer.stop)
+
+    # keyboard.wait("s")
+    # keyboard.wait("p")
+
+
+# main_loop()
+
+# CountDown().start()
 
 # countdown(timer)
-countdown(total_seconds)
+# countdown(total_seconds)
+# count_down = threading.Thread(target=countdown(total_seconds)).start()
+# user_input = input("Hit Enter To STOP Thee Timer")
+# if user_input == "":
+#     countdown.__setattr__("paused", True)  #paused = True
