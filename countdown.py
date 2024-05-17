@@ -1,151 +1,23 @@
 import os
-import sys
 import time
-# import asyncio
-# import keyboard
-import datetime
-import threading
-from pathlib import Path
-# from chodebot import data_directory
+from functions import clock, clock_reset_time, read_clock, write_clock, get_sec
 
 
-if getattr(sys, 'frozen', False):
-    application_path = os.path.dirname(sys.executable)
-else:
-    application_path = os.path.dirname(__file__)
-
-timer = None
-total_seconds = None
-clock_reset_time = "0:00:00"
-data_directory = f"{application_path}\\data\\"
-clock = f"{data_directory}clock.txt"
-Path(data_directory).mkdir(parents=True, exist_ok=True)
-
-
-def get_sec(time_str: str):
-    if "Day" in time_str:
-        d, hms = time_str.split(",")
-        d = d.replace("Day", "")
-        if "s" in d:
-            d = d.replace("s", "")
-        h, m, s = hms.split(":")
-        return int(d) * 86400 + int(h) * 3600 + int(m) * 60 + int(s)
-    else:
-        h, m, s = time_str.split(':')
-        return int(h) * 3600 + int(m) * 60 + int(s)
-
-
-def read_clock():
-    with open(clock, "r") as file:
-        timer = file.read()
-        return timer
-
-
-def write_clock(seconds: int, add: bool = False):
-    try:
-        with open(clock, "r") as file_read:
-            timer = file_read.read()
-        total_seconds = get_sec(timer)
-        total_seconds = int(total_seconds)
-        if add:
-            total_seconds += seconds
-            timer = datetime.timedelta(seconds=total_seconds)
-            timer = str(timer)
-            with open(clock, "w") as file:
-                file.write(timer.title())
-        elif not add:
-            total_seconds -= seconds
-            timer = datetime.timedelta(seconds=total_seconds)
-            timer = str(timer)
-            with open(clock, "w") as file:
-                file.write(timer.title())
-    except Exception as e:
-        if ValueError:
-            print(f"Attempted to go negative time. -- {e}")
-            with open(clock, "r") as read:
-                old_time = read.read()
-            with open(clock, "w") as file:
-                file.write(clock_reset_time)
-            print(f"Overwrote to prevent issues. old time was:: {old_time}")
-            return
-        else:
-            print(f"Something else went wrong -- {e}")
-            return
-
-
-# def countdown(total_seconds, paused=False):
-#     time.sleep(1)
-#     while total_seconds >= 1:
-#         try:
-#             write_clock(1)
-#             timer = read_clock()
-#             total_seconds = get_sec(timer)
-#             print(timer), time.sleep(1)
-#         except KeyboardInterrupt:
-#             paused = True
-#             break
-#     if not paused:
-#         print("Bzzzt! The countdown is at zero seconds!")
-#         with open(clock, "w") as file:
-#             file.write(clock_reset_time)
-
-
-class CountDown:  # ToDo: Try This With A CustomTkinter App?????????????????????????????????????????????????
-    def __init__(self):
-        # self.was_paused = False
-        self.is_running = False
-        self.timer = f"0:00:00"
-        self.total_seconds = 0
-
-        # print(self.timer, self.total_seconds)
-        # self.initiate()
-        # print(self.timer, self.total_seconds)
-        # time.sleep(1)
-        # while self.total_seconds >= 1 and self.is_running:
-        #     write_clock(1)
-        #     self.timer = read_clock()
-        #     self.total_seconds = get_sec(self.timer)
-        #     print(timer), time.sleep(1)
-        #     if not self.is_running:
-        #         break
-        # if total_seconds <= 0:
-        #     print("Bzzzt! The countdown is at zero seconds!")
-        #     with open(clock, "w") as file:
-        #         file.write(clock_reset_time)
-
-    def countdown(self):
-        print(self.timer, self.total_seconds)
-        self.initiate()
-        print(self.timer, self.total_seconds)
-        time.sleep(1)
-        while self.total_seconds >= 1:
+def countdown(total_seconds):
+    time.sleep(1)
+    while total_seconds >= 1:
+        try:
             write_clock(1)
-            self.timer = read_clock()
-            self.total_seconds = get_sec(self.timer)
-            print(self.timer), time.sleep(1)
-            if not self.is_running:
-                break
-        if total_seconds <= 0:
-            print("Bzzzt! The countdown is at zero seconds!")
-            with open(clock, "w") as file:
-                file.write(clock_reset_time)
-
-    def initiate(self):
-        with open(clock, "r") as file:
-            self.timer = file.read()
-        self.total_seconds = get_sec(self.timer)
-
-    def start(self):
-        # self.initiate()
-        if not self.is_running:
-            self.is_running = True
-            # threading.Thread(target=self.countdown()).run()
-            self.countdown()
-
-    def stop(self):
-        if self.is_running:
-            # self.was_paused = True
-            self.is_running = False
+            total_seconds = get_sec(read_clock())
+            print(read_clock()), time.sleep(1)
+        except KeyboardInterrupt:
+            break
+    total_seconds = get_sec(read_clock())
+    print(total_seconds, f"TESTING STUFFS")
+    if total_seconds <= 0:
+        print("Bzzzt! The countdown is at zero seconds!")
+        with open(clock, "w") as file:
+            file.write(clock_reset_time)
 
 
 try:
@@ -159,47 +31,54 @@ except Exception as e:
     print(f"Something wrong, cannot locate clock.txt file. path looking in is: {clock} -- {e}")
     exit()
 
-with open(clock, "r") as file:  # DEBUGGING
-    print(file.read())
-
-# while True:
-#     user_seconds = input(f"+seconds to start thee timer\n")
-#     if user_seconds.startswith("+"):
-#         seconds = user_seconds.lstrip("+")
-#         if seconds.isdigit():
-#             seconds = int(seconds)
-#             write_clock(seconds, True)
-#             input("Hit ENTER To Start Thee Timer!\n")
-#             break
-#         else:
-#             print(f"{seconds} isn't valid, try just numbers.")
-#     else:
-#         print(f"input not valid, yours was: -- {user_seconds} --")
-#         continue
-
-
-# paused = False
-timer = read_clock()
-total_seconds = get_sec(timer)
-print(timer, total_seconds, f"WHAT THEE FUCK")  # DEBUGGING
-# countdown(total_seconds)
-
-# def main_loop():
-#     timer = CountDown()
-#     keyboard.add_hotkey("s", timer.start)
-#     keyboard.add_hotkey("p", timer.stop)
-
-    # keyboard.wait("s")
-    # keyboard.wait("p")
-
-
-# main_loop()
-
-# CountDown().start()
-
-# countdown(timer)
-# countdown(total_seconds)
-# count_down = threading.Thread(target=countdown(total_seconds)).start()
-# user_input = input("Hit Enter To STOP Thee Timer")
-# if user_input == "":
-#     countdown.__setattr__("paused", True)  #paused = True
+while True:
+    try:
+        user_input = input(f"Enter 1 to enter countdown\nEnter 0 to quit countdown\n")
+        if user_input.isdigit():
+            user_input = int(user_input)
+            if user_input == 0:
+                print(f"Exiting countdown")
+                break
+            elif user_input == 1:
+                while True:
+                    while True:
+                        try:
+                            user_seconds = input(f"+/-seconds to start thee timer\n")
+                            if user_seconds.startswith("+"):
+                                add = True
+                                break
+                            elif user_seconds.startswith("-"):
+                                add = False
+                                break
+                            else:
+                                print(f"input not valid, yours was: -- {user_seconds} --")
+                        except KeyboardInterrupt:
+                            print(f"Exiting countdown")
+                            add = None
+                            user_seconds = None
+                            break
+                    if None in (add, user_seconds):
+                        break
+                    try:
+                        user_seconds = user_seconds.lstrip("-").lstrip("+")
+                        if user_seconds.isdigit():
+                            user_seconds = int(user_seconds)
+                            write_clock(user_seconds, add)
+                            input("Hit ENTER To Start Thee Timer!\n")
+                            timer = read_clock()
+                            total_seconds = get_sec(timer)
+                            print(timer, total_seconds)  # DEBUGGING -- ++ 2 lines above -- otherwise countdown(get_sec(read_clock()))
+                            countdown(total_seconds)
+                            # countdown(get_sec(read_clock()))  # For Run
+                        else:
+                            print(f"{user_seconds} isn't valid, try just numbers.")
+                    except KeyboardInterrupt:
+                        print(f"Exiting countdown")
+                        break
+            else:
+                print(f"Invalid Input -- You put {user_input}")
+        else:
+            print(f"Invalid Input -- You put {user_input} -- which is a {type(user_input)}")
+    except KeyboardInterrupt:
+        print("Exiting countdown")
+        break

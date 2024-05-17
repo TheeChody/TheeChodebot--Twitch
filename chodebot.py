@@ -1,35 +1,32 @@
 import os
-import sys
 import time
 import asyncio
 import logging
 import datetime
-# import threading
-# from countdown import countdown, write_clock, read_clock, get_sec
-# from countdown import CountDown
-from pathlib import Path
-from mondocs import Users, EconomyData, Channel
 from dotenv import load_dotenv
 from twitchAPI.helper import first
 from twitchAPI.twitch import Twitch
 from twitchAPI.type import AuthScope
 from pyprobs import Probability as pr
+from mondocs import Users, EconomyData, Channel
 from twitchAPI.eventsub.websocket import EventSubWebsocket
 from twitchAPI.oauth import UserAuthenticationStorageHelper
 from mongoengine import connect, disconnect_all, DEFAULT_CONNECTION_NAME
+from functions import logs_directory, chat_log, read_clock, write_clock, get_sec, long_dashes
 from twitchAPI.object.eventsub import ChannelAdBreakBeginEvent, ChannelChatMessageEvent, ChannelCheerEvent, ChannelFollowEvent, \
     StreamOnlineEvent, StreamOfflineEvent, HypeTrainEvent, HypeTrainEndEvent, ChannelPollBeginEvent, ChannelPollEndEvent, \
     ChannelRaidEvent, ChannelPointsCustomRewardRedemptionAddEvent, ChannelSubscribeEvent, ChannelSubscriptionGiftEvent, \
     ChannelUpdateEvent, ChannelPredictionEvent, ChannelPredictionEndEvent, ChannelChatNotificationEvent
 
+cmd = "$"
 load_dotenv()
+standard_points = 5
 id_twitch_client = os.getenv("client")
 id_twitch_secret = os.getenv("secret")
 id_broadcaster_account = os.getenv("broadcaster")
 mongo_login_string = os.getenv("monlog_string")
 mongo_twitch_collection = os.getenv("montwi_string")
 mongo_discord_collection = os.getenv("mondis_string")
-long_dashes = "-------------------------------------------------"
 target_scopes = [AuthScope.BITS_READ,
                  AuthScope.CLIPS_EDIT,
                  AuthScope.CHANNEL_BOT,
@@ -47,24 +44,12 @@ target_scopes = [AuthScope.BITS_READ,
                  AuthScope.CHANNEL_READ_SUBSCRIPTIONS,
                  AuthScope.CHANNEL_MANAGE_PREDICTIONS,
                  AuthScope.CHANNEL_READ_PREDICTIONS]  # ToDo: FIGURE OUT WHY THEE PREDICTION SHIT FLIPS OUT ON END/LOCK CALL!!!!!!!!!!!
-twitch_bot = Twitch(id_twitch_client, id_twitch_secret)
-cmd = "$"
-registered_commands = [f"{cmd}commands",  # ToDo: Think about making use of this as a tuple and checking thru to see if thee bits before spaces match?
+registered_commands = [f"{cmd}commands",
                        f"{cmd}gamble NUMBER_HERE",
                        f"{cmd}lastcomment",
                        f"{cmd}leaderbitties",
-                       f"{cmd}pt discord/twitch NUMBER_HERE"]
-
-if getattr(sys, 'frozen', False):
-    application_path = os.path.dirname(sys.executable)
-else:
-    application_path = os.path.dirname(__file__)
-
-data_directory = f"{application_path}\\data\\"
-logs_directory = f"{application_path}\\logs\\"
-chat_log = f"{logs_directory}chat_log.log"
-Path(data_directory).mkdir(parents=True, exist_ok=True)
-Path(logs_directory).mkdir(parents=True, exist_ok=True)
+                       f"{cmd}pt discord/twitch NUMBER_HERE"]  # ToDo: Think about making use of this as a tuple and checking thru to see if thee bits before spaces match?
+twitch_bot = Twitch(id_twitch_client, id_twitch_secret)
 
 
 async def on_stream_ad_start(data: ChannelAdBreakBeginEvent):
@@ -120,9 +105,10 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                                f"Backend Mess up ")
         if data.event.chatter_user_id == id_broadcaster_account and data.event.message.text.startswith(message_starts_with):
             return
+        # ToDo: Would this be better to return after sending message, and therefore not registering?
+        #  Would have to change up format in twitch message, either remove chatter user_name or add a way for code to know to ignore that kind of message...
         if data.event.message.text.startswith("!"):
             await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} commands start with '{cmd}' in this channel.")
-        message_add_points = 10
         chatter_username = data.event.chatter_user_name
         chatter_document = await get_chatter_document(data)
         if chatter_document is None:
@@ -131,7 +117,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
 
         if data.event.message.text.replace(" ", "") in (f"{cmd}commands", f"{cmd}cmds", f"{cmd}commandlist", f"{cmd}cmdlist"):
             try:
-                await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Registered commands are: {', '.join(registered_commands)}")
+                await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Registered commands are: {' - '.join(registered_commands)}")
             except Exception as f:
                 formatted_time = fortime()
                 logger.error(f"{formatted_time}: Error in on_stream_chat_message - commands command -- {f}")
@@ -174,7 +160,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 if data.event.message.text.lstrip("!pt ").startswith("witch"):
                     transfer_value = data.event.message.text.lstrip("!pt twitch ")
                     if transfer_value.isdigit():
-                        await points_transfer("twitch", transfer_value, chatter_document, chatter_document_discord)
+                        await document_points_transfer("twitch", transfer_value, chatter_document, chatter_document_discord)
                     else:
                         await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"I couldn't ID thee number you're betting with")
                         print(f"--{transfer_value}--{type(transfer_value)}")
@@ -182,7 +168,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 elif data.event.message.text.lstrip("!pt ").startswith("discord"):
                     transfer_value = data.event.message.text.lstrip("!pt discord ")
                     if transfer_value.isdigit():
-                        await points_transfer("discord", transfer_value, chatter_document, chatter_document_discord)
+                        await document_points_transfer("discord", transfer_value, chatter_document, chatter_document_discord)
                     else:
                         await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"I couldn't ID thee number you're betting with")
                         print(f"--{transfer_value}--{type(transfer_value)}")
@@ -225,7 +211,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 return
         else:
             try:
-                await twitch_points_transfer(chatter_document, message_add_points)
+                await twitch_points_transfer(chatter_document, standard_points)
                 chat_logger.info(f"{data.event.chatter_user_id}/{data.event.chatter_user_name}: {data.event.message.text if data.event.message_type == 'text' else 'not a text message'}")
             except Exception as f:
                 formatted_time = fortime()
@@ -267,6 +253,12 @@ async def on_stream_cheer(data: ChannelCheerEvent):
         if data.event.is_anonymous:
             user = "Anonymous"
         else:
+            chatter_document = await get_chatter_document(data)
+            if chatter_document is None:
+                pass
+            else:
+                points_to_add = round(standard_points * data.event.bits)
+                await twitch_points_transfer(chatter_document, points_to_add)
             user = data.event.user_name
         await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{user} has cheered {data.event.bits}")
     except Exception as e:
@@ -539,7 +531,7 @@ async def run():
                 pass
 
         try:
-            user_input = input("Enter 1 to Start Timer\nEnter 2 to Stop Timer\nEnter 0 to Halt Bot\n")
+            user_input = input("Enter 1 to Start Timer\nEnter 2 to Stop Timer\nEnter 3 to get time\nEnter 4 to add/subtract time\nEnter 0 to Halt Bot\n")
             if user_input.isdigit():
                 user_input = int(user_input)
                 if user_input == 0:
@@ -547,6 +539,26 @@ async def run():
                     break
                 elif user_input in (1, 2):
                     print("Values 1 & 2 Not Programmed Yet")
+                elif user_input == 3:
+                    print(get_sec(read_clock()))
+                elif user_input == 4:
+                    while True:
+                        number = input(f"Enter +/-number to add")
+                        if number.startswith("+"):
+                            add = True
+                            # number = number.replace("+", "")
+                            break
+                        elif number.startswith("-"):
+                            add = False
+                            # number = number.replace("-", "")
+                            break
+                        else:
+                            print(f"Invalid Input -- You put '{number}'")
+                    print(number, number[-1:])
+                    if number.isdigit():
+                        write_clock(int(number), add)
+                    else:
+                        print(f"Invalid Input -- You put '{number}' which is a {type(number)} -- USE NUMPAD +/-!!")
                 else:
                     print(f"Invalid Input -- You put '{user_input}'")
             else:
@@ -571,7 +583,7 @@ def fortime():
         return None
 
 
-async def points_transfer(direction, transfer_value, chatter_document, chatter_document_discord):
+async def document_points_transfer(direction, transfer_value, chatter_document, chatter_document_discord):
     try:
         if None in (chatter_document, chatter_document_discord):
             return
@@ -745,22 +757,6 @@ if None in (logger, chat_logger, gamble_logger):
     print(f"One of thee loggers isn't setup right -- {logger}/{chat_logger}/{gamble_logger} -- Quitting program")
     quit()
 
-# try:
-#     logger.info(long_dashes)
-#     twitch_database = connect_mongo(mongo_twitch_collection, DEFAULT_CONNECTION_NAME)
-#     time.sleep(1)
-#     discord_database = connect_mongo(mongo_discord_collection, "Discord_Database")
-#     time.sleep(1)
-#     if None in (twitch_database, discord_database):
-#         disconnect_mongo()
-#         formatted_time = fortime()
-#         logger.error(f"{formatted_time}: Error connecting one of thee databases -- {twitch_database}/{discord_database} -- Quitting program")
-#         quit()
-# except Exception as e:
-#     formatted_time = fortime()
-#     logger.error(f"{formatted_time}: Error Loading Twitch Database -- {e}")
-#     pass
-
 while True:
     def shutdown():
         asyncio.run(disconnect_mongo())
@@ -794,6 +790,38 @@ while True:
                 asyncio.run(run())
             elif user_input == 2:
                 print("Logic Not Coded")
+                # try:  # ToDo: Figure this shit out, so I can run thee .py file from within ChodeBot....
+                #     def join_path(relative_path: str):
+                #         try:
+                #             print(os.path.join("py ", countdown_path, relative_path))
+                #             return os.path.join("py ", countdown_path, relative_path)
+                #         except Exception as wtf:
+                #             print(wtf)
+                #
+                #
+                #     # subprocess.Popen(join_path("countdown.py"), shell=True)
+                #     subprocess.run(join_path("countdown.py"), shell=True)
+                # except Exception as grr:
+                #     print(grr)
+                #     continue
+            elif user_input == 3:
+                while True:
+                    while True:
+                        number = input(f"Enter +/-number to add")
+                        if number.startswith("+"):
+                            add = True
+                            break
+                        elif number.startswith("-"):
+                            add = False
+                            break
+                        else:
+                            print(f"Invalid Input -- You put '{number}'")
+                    number = number.lstrip("-").lstrip("+")
+                    if number.isdigit():
+                        write_clock(int(number), add)
+                        break
+                    else:
+                        print(f"Invalid Input -- You put '{number}' which is a {type(number)} -- USE NUMPAD +/-!!")
             # elif user_input == 3:
             #     threading.Thread(target=CountDown().start()).run()
             #     clock_thread = threading.Thread(target=CountDown().start()).run()
@@ -813,5 +841,3 @@ while True:
             formatted_time = fortime()
             logger.error(f"{formatted_time}: Error in MAIN loop -- {e}")
             continue
-
-# asyncio.run(run())

@@ -17,17 +17,6 @@ class Channel(Document):
     meta = {"db_alias": "default"}
 
 
-class Users(Document):
-    user_id = IntField(primary_key=True)
-    user_name = DynamicField(default="")
-    user_login = DynamicField(default="")
-    user_points = IntField(default=0)
-    first_chat_date = DynamicField(default="")
-    latest_chat_date = DynamicField(default="")
-    user_discord_id = IntField(default=0)
-    meta = {"db_alias": "default"}
-
-
 class EconomyData(Document):
     author_id = IntField(primary_key=True)
     author_name = DynamicField(default="")
@@ -45,3 +34,14 @@ class EconomyData(Document):
     total_gambling_lost = DynamicField(default=0)
     twitch_id = DynamicField(default=0)
     meta = {"db_alias": "Discord_Database"}
+
+
+class Users(Document):
+    user_id = IntField(primary_key=True)
+    user_name = DynamicField(default="")
+    user_login = DynamicField(default="")
+    user_points = IntField(default=0)
+    first_chat_date = DynamicField(default="")
+    latest_chat_date = DynamicField(default="")
+    user_discord_id = IntField(default=0)
+    meta = {"db_alias": "default"}
