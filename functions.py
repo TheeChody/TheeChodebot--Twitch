@@ -64,7 +64,7 @@ def write_clock(seconds: int, add: bool = False):
             with open(clock, "r") as read:
                 old_time = read.read()
             with open(clock, "w") as file:
-                file.write(f"0:00:00")
+                file.write(clock_reset_time)
             print(f"Overwrote to prevent issues. old time was:: {old_time}")
             return
         else:

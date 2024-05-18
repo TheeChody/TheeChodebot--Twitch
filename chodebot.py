@@ -1,5 +1,6 @@
 import os
 import time
+import random
 import asyncio
 import logging
 import datetime
@@ -12,7 +13,7 @@ from mondocs import Users, EconomyData, Channel
 from twitchAPI.eventsub.websocket import EventSubWebsocket
 from twitchAPI.oauth import UserAuthenticationStorageHelper
 from mongoengine import connect, disconnect_all, DEFAULT_CONNECTION_NAME
-from functions import logs_directory, chat_log, read_clock, write_clock, get_sec, long_dashes
+from functions import logs_directory, chat_log, read_clock, write_clock, long_dashes
 from twitchAPI.object.eventsub import ChannelAdBreakBeginEvent, ChannelChatMessageEvent, ChannelCheerEvent, ChannelFollowEvent, \
     StreamOnlineEvent, StreamOfflineEvent, HypeTrainEvent, HypeTrainEndEvent, ChannelPollBeginEvent, ChannelPollEndEvent, \
     ChannelRaidEvent, ChannelPointsCustomRewardRedemptionAddEvent, ChannelSubscribeEvent, ChannelSubscriptionGiftEvent, \
@@ -21,6 +22,8 @@ from twitchAPI.object.eventsub import ChannelAdBreakBeginEvent, ChannelChatMessa
 cmd = "$"
 load_dotenv()
 standard_points = 5
+standard_seconds = 1
+writing_to_clock = True
 id_twitch_client = os.getenv("client")
 id_twitch_secret = os.getenv("secret")
 id_broadcaster_account = os.getenv("broadcaster")
@@ -35,6 +38,7 @@ target_scopes = [AuthScope.BITS_READ,
                  AuthScope.CHANNEL_MODERATE,
                  AuthScope.CHANNEL_READ_ADS,
                  AuthScope.CHANNEL_MANAGE_POLLS,
+                 AuthScope.USER_MANAGE_WHISPERS,
                  AuthScope.CHANNEL_SUBSCRIPTIONS,
                  AuthScope.CHANNEL_READ_HYPE_TRAIN,
                  AuthScope.MODERATOR_READ_CHATTERS,
@@ -76,37 +80,8 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
     #  --possibly have a new 'list' of chat entries for each stream day.
     #  -------------------------------------- End of on_stream_chat_message List ---------------------------------------
     try:
-        def get_last_chatter():
-            try:
-                last_chatter_name = "'--NO_NAME_AT_ALL--'"
-                with open(chat_log, "r") as file:
-                    chat_logs = file.read()
-                chat_logs = list(map(str, chat_logs.splitlines()))
-                for last in reversed(chat_logs):
-                    if last.startswith(id_broadcaster_account):
-                        pass
-                    else:
-                        last_chatter_id, last_chatter_name = last.split("/", maxsplit=1)
-                        last_chatter_name, last_chatter_message = last_chatter_name.split(": ", maxsplit=1)
-                        break
-                return last_chatter_name
-            except Exception as f:
-                print(f"Error in get_last_chatter - via on_stream_chat_message -- {f}")
-                return ""
-
-        message_starts_with = (f"{data.event.broadcaster_user_name}",
-                               f"@{data.event.broadcaster_user_name}",
-                               f"{get_last_chatter()}",
-                               # f"{data.event.chatter_user_name}",
-                               f"Bitties 4 Titties Leaderboard: ",
-                               f"I couldn't ID ",
-                               f"You do not have enough ",
-                               f"Transferred ",
-                               f"Backend Mess up ")
-        if data.event.chatter_user_id == id_broadcaster_account and data.event.message.text.startswith(message_starts_with):
+        if data.event.chatter_user_id == id_broadcaster_account:
             return
-        # ToDo: Would this be better to return after sending message, and therefore not registering?
-        #  Would have to change up format in twitch message, either remove chatter user_name or add a way for code to know to ignore that kind of message...
         if data.event.message.text.startswith("!"):
             await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} commands start with '{cmd}' in this channel.")
         chatter_username = data.event.chatter_user_name
@@ -114,7 +89,6 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
         if chatter_document is None:
             logger.error(f"Chatter Document is None!! -- {data.event.chatter_user_id}/{data.event.chatter_user_name}/{data.event.chatter_user_login}")
             pass
-
         if data.event.message.text.replace(" ", "") in (f"{cmd}commands", f"{cmd}cmds", f"{cmd}commandlist", f"{cmd}cmdlist"):
             try:
                 await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Registered commands are: {' - '.join(registered_commands)}")
@@ -128,7 +102,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 print(bits_lb.total)
                 users_board = ""
                 for user in bits_lb:
-                    users_board += f"#{user.rank:02d} - {user.user_name}: {user.score} - "
+                    users_board += f"#{user.rank:02d}: {user.user_name}: {user.score} - "
                 await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Bitties 4 Titties Leaderboard: {users_board[:-3]}")
             except Exception as f:
                 formatted_time = fortime()
@@ -137,6 +111,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
         elif data.event.message.text.replace(" ", "") in (f"{cmd}lastcomment", f"{cmd}lastmessage", "!lastcomment", "!lastmessage"):
             try:
                 last_message = None
+                last_message_time = None
                 with open(chat_log, "r") as file:
                     chat_logs = file.read()
                 chat_logs = list(map(str, chat_logs.splitlines()))
@@ -144,46 +119,21 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                     if last.startswith(data.event.chatter_user_id):
                         user_name, last_message = last.split(": ", maxsplit=1)
                         break
-                await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"@{data.event.broadcaster_user_name}!!!! {chatter_username}'s last message was:\n{last_message if not None else 'Not Found!!!'}")
+                if chatter_document is not None:
+                    last_message_time = chatter_document['latest_chat_date'].strftime('%H:%M:%S')
+                await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.broadcaster_user_name}!!!! {chatter_username}'s last message was: {last_message if not None else 'Not Found!!!'}{f' - Sent @ {last_message_time} MST' if last_message is not None and last_message_time is not None else ''}")
             except Exception as f:
                 formatted_time = fortime()
                 logger.error(f"{formatted_time}: Error in on_stream_chat_message - lastcomment command -- {f}")
                 return
-        elif data.event.message.text.startswith(f"{cmd}pt"):
-            try:
-                if chatter_document['user_discord_id'] == 0:
-                    await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} you do not have your discord ID linked to your twitch yet")
-                    return
-                chatter_document_discord = await get_discord_document(chatter_document)
-                if chatter_document_discord is None:
-                    return
-                if data.event.message.text.lstrip("!pt ").startswith("witch"):
-                    transfer_value = data.event.message.text.lstrip("!pt twitch ")
-                    if transfer_value.isdigit():
-                        await document_points_transfer("twitch", transfer_value, chatter_document, chatter_document_discord)
-                    else:
-                        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"I couldn't ID thee number you're betting with")
-                        print(f"--{transfer_value}--{type(transfer_value)}")
-                        return
-                elif data.event.message.text.lstrip("!pt ").startswith("discord"):
-                    transfer_value = data.event.message.text.lstrip("!pt discord ")
-                    if transfer_value.isdigit():
-                        await document_points_transfer("discord", transfer_value, chatter_document, chatter_document_discord)
-                    else:
-                        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"I couldn't ID thee number you're betting with")
-                        print(f"--{transfer_value}--{type(transfer_value)}")
-                        return
-            except Exception as f:
-                formatted_time = fortime()
-                logger.error(f"{formatted_time}: Error in on_stream_chat_message - pt command -- {f}")
         elif data.event.message.text.startswith(f"{cmd}gamble"):
             try:
-                bet_value = data.event.message.text.lstrip("!gamble ")
+                bet_value = data.event.message.text.lstrip(f"{cmd}gamble ")
                 if bet_value.isdigit():
                     bet_value = int(bet_value)
                 else:
                     print(f"--{bet_value}")
-                    await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} your command should resemble '!gamble 100' where 100, put your bet value. Try again")
+                    await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} your command should resemble '{cmd}gamble 100' where 100, put your bet value. Try again")
                     return
                 print(f"{bet_value} vs {chatter_document['user_points']}")
                 if bet_value > chatter_document['user_points']:
@@ -209,6 +159,43 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 gamble_logger.error(f"{formatted_time}: Error in on_stream_chat_message - gamble command -- {f}")
                 await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} something wen't wrong, TheeChody will fix it sooner than later. Error logged in thee background")
                 return
+        elif data.event.message.text.startswith(f"{cmd}hug"):
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} Big Chody Hugs!!!", reply_parent_message_id=data.event.message_id)
+            write_clock(3600, True)  # ToDo: DON'T LEAVE THIS HERE DUMMY
+        elif data.event.message.text.startswith(f"{cmd}pt"):
+            try:
+                if chatter_document['user_discord_id'] == 0:
+                    user_discord_id_temp = str(chatter_document['user_id'])[:5] + str(random.randint(10000, 99999))
+                    chatter_document.update(user_discord_id=int(user_discord_id_temp))
+                    chatter_document.save()
+                    await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} you do not have your discord ID linked to your twitch yet. Will attempt to DM you a special code with instructions to link account", reply_parent_message_id=data.event.message_id)
+                    await twitch_bot.send_whisper(id_broadcaster_account, data.event.chatter_user_id, f"Hola, your special discord link code is: {user_discord_id_temp} . Head to any discord server TheeChodebot runs in and use this command: $link_twitch {user_discord_id_temp} . Thee code will automatically expire and your message will be deleted in discord and a response confirming will appear")
+                    return
+                elif str(chatter_document['user_discord_id']).startswith(data.event.chatter_user_id[:5]):
+                    await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} check your DM's if their open, if not reach out to {data.event.broadcaster_user_name} to figure it out", reply_parent_message_id=data.event.message_id)
+                    return
+                chatter_document_discord = await get_discord_document(chatter_document)
+                if chatter_document_discord is None:
+                    return
+                if data.event.message.text.lstrip(f"{cmd}pt ").startswith("witch"):
+                    transfer_value = data.event.message.text.lstrip(f"{cmd}pt twitch ")
+                    if transfer_value.isdigit():
+                        await document_points_transfer("twitch", transfer_value, chatter_document, chatter_document_discord)
+                    else:
+                        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"I couldn't ID thee number you're trying to transfer", reply_parent_message_id=data.event.message_id)
+                        print(f"--{transfer_value}--{type(transfer_value)}")
+                        return
+                elif data.event.message.text.lstrip(f"{cmd}pt ").startswith("discord"):
+                    transfer_value = data.event.message.text.lstrip(f"{cmd}pt discord ")
+                    if transfer_value.isdigit():
+                        await document_points_transfer("discord", transfer_value, chatter_document, chatter_document_discord)
+                    else:
+                        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"I couldn't ID thee number you're trying to transfer", reply_parent_message_id=data.event.message_id)
+                        print(f"--{transfer_value}--{type(transfer_value)}")
+                        return
+            except Exception as f:
+                formatted_time = fortime()
+                logger.error(f"{formatted_time}: Error in on_stream_chat_message - pt command -- {f}")
         else:
             try:
                 await twitch_points_transfer(chatter_document, standard_points)
@@ -260,7 +247,9 @@ async def on_stream_cheer(data: ChannelCheerEvent):
                 points_to_add = round(standard_points * data.event.bits)
                 await twitch_points_transfer(chatter_document, points_to_add)
             user = data.event.user_name
-        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{user} has cheered {data.event.bits}")
+        seconds = round(standard_seconds * data.event.bits)
+        added_to_clock = try_write_clock(seconds)
+        await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"B-B-Bitties!! {user} has cheered {data.event.bits}{f' adding {datetime.timedelta(seconds=seconds)} to thee timer!!' if added_to_clock else '.'}")
     except Exception as e:
         formatted_time = fortime()
         logger.error(f"{formatted_time}: Error in 'on_stream_cheer' -- {e}")
@@ -521,15 +510,17 @@ async def run():
         async def shutdown():
             try:
                 print("Shutting down twitch bot processes. Stand By")
+                await asyncio.sleep(1)
                 await event_sub.stop()
+                await asyncio.sleep(1)
                 await twitch_bot.close()
-                # await disconnect_mongo()
+                await asyncio.sleep(1)
+                await disconnect_mongo()
                 await asyncio.sleep(1)
                 print("Twitch bot processes shut down successfully")
             except Exception as e:
                 print(f"Error in shutdown() -- {e}")
                 pass
-
         try:
             user_input = input("Enter 1 to Start Timer\nEnter 2 to Stop Timer\nEnter 3 to get time\nEnter 4 to add/subtract time\nEnter 0 to Halt Bot\n")
             if user_input.isdigit():
@@ -540,21 +531,19 @@ async def run():
                 elif user_input in (1, 2):
                     print("Values 1 & 2 Not Programmed Yet")
                 elif user_input == 3:
-                    print(get_sec(read_clock()))
+                    print(read_clock())
                 elif user_input == 4:
                     while True:
                         number = input(f"Enter +/-number to add")
                         if number.startswith("+"):
                             add = True
-                            # number = number.replace("+", "")
                             break
                         elif number.startswith("-"):
                             add = False
-                            # number = number.replace("-", "")
                             break
                         else:
                             print(f"Invalid Input -- You put '{number}'")
-                    print(number, number[-1:])
+                    number = number.lstrip("+").lstrip("-")
                     if number.isdigit():
                         write_clock(int(number), add)
                     else:
@@ -583,54 +572,52 @@ def fortime():
         return None
 
 
-async def document_points_transfer(direction, transfer_value, chatter_document, chatter_document_discord):
-    try:
-        if None in (chatter_document, chatter_document_discord):
-            return
-        transfer_value = int(transfer_value)
-        if direction == "twitch":
-            if transfer_value > chatter_document_discord['points_value']:
-                await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"You do not have enough discord points to transfer. You have {chatter_document_discord['points_value']} points")
-                return
-            new_discord_points = chatter_document_discord['points_value'] - transfer_value
-            chatter_document_discord.update(points_value=new_discord_points)
-            chatter_document_discord.save()
-            new_twitch_points = chatter_document['user_points'] + transfer_value
-            chatter_document.update(user_points=new_twitch_points)
-            chatter_document.save()
-            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Transferred {transfer_value} to your twitch profile.")
-        elif direction == "discord":
-            if transfer_value > chatter_document['user_points']:
-                await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"You do not have enough discord points to transfer. You have {chatter_document['user_points']} points")
-                return
-            new_discord_points = chatter_document_discord['points_value'] + transfer_value
-            chatter_document_discord.update(points_value=new_discord_points)
-            chatter_document_discord.save()
-            new_twitch_points = chatter_document['user_points'] - transfer_value
-            chatter_document.update(user_points=new_twitch_points)
-            chatter_document.save()
-            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Transferred {transfer_value} to your discord profile.")
-        else:
-            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Backend Mess up.... {direction} is thee direction")
-            return
-    except Exception as e:
-        formatted_time = fortime()
-        logger.error(f"{formatted_time}: Error in points_transfer -- {chatter_document['user_id']}/{chatter_document['user_name']}/{chatter_document['user_login']}/{chatter_document['user_discord_id']} -- {chatter_document_discord['author_id']}/{chatter_document_discord['author_name']}/{chatter_document_discord['guild_name']}/{chatter_document_discord['twitch_id']} -- {e}")
-        return
+def try_write_clock(seconds):
+    if writing_to_clock:
+        write_clock(seconds)
+        return True
+    else:
+        return False
 
 
-async def twitch_points_transfer(chatter_document, value: int, add: bool = True):
+def setup_logger(name, log_file, level=logging.INFO):
     try:
-        formatted_time = fortime()
-        if add:
-            new_user_points = chatter_document['user_points'] + value
-        else:
-            new_user_points = chatter_document['user_points'] - value
-        chatter_document.update(user_points=new_user_points, latest_chat_date=formatted_time)
-        chatter_document.save()
+        handler = logging.FileHandler(f"{logs_directory}{log_file}")
+        console_handler = logging.StreamHandler()
+        logger = logging.getLogger(name)
+        logger.setLevel(level)
+        logger.addHandler(handler)
+        logger.addHandler(console_handler)
+        return logger
     except Exception as e:
         formatted_time = fortime()
-        logger.error(f"{formatted_time}: Error in twitch_points_transfer -- {chatter_document['user_id']}/{chatter_document['user_name']}/{chatter_document['user_login']} -- {e}")
+        print(f"{formatted_time}: ERROR in setup_logger -- {name}/{log_file}/{level} -- {e}")
+        return None
+
+
+def connect_mongo(db, alias):
+    try:
+        client = connect(db=db, host=mongo_login_string, alias=alias)
+        formatted_time = fortime()
+        logger.info(f"{formatted_time}: MongoDB Connected\n{long_dashes}")
+        time.sleep(1)
+        client.get_default_database(db)
+        formatted_time = fortime()
+        logger.info(f"{formatted_time}: Database Loaded\n{long_dashes}")
+        return client
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error Connecting MongoDB -- {e}")
+        return None
+
+
+async def disconnect_mongo():
+    try:
+        disconnect_all()
+        logger.info(f"{long_dashes}\nDisconnected from MongoDB\n{long_dashes}")
+    except Exception as e:
+        formatted_time = fortime()
+        logger.error(f"{formatted_time}: Error Disconnection MongoDB -- {e}")
         return
 
 
@@ -708,45 +695,56 @@ async def get_discord_document(chatter_document):
         return None
 
 
-def connect_mongo(db, alias):
+async def document_points_transfer(direction, transfer_value, chatter_document, chatter_document_discord):
     try:
-        client = connect(db=db, host=mongo_login_string, alias=alias)
-        formatted_time = fortime()
-        logger.info(f"{formatted_time}: MongoDB Connected\n{long_dashes}")
-        time.sleep(1)
-        client.get_default_database(db)
-        formatted_time = fortime()
-        logger.info(f"{formatted_time}: Database Loaded\n{long_dashes}")
-        return client
+        if None in (chatter_document, chatter_document_discord):
+            return
+        transfer_value = int(transfer_value)
+        if direction == "twitch":
+            if transfer_value > chatter_document_discord['points_value']:
+                await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"You do not have enough discord points to transfer. You have {chatter_document_discord['points_value']} points")
+                return
+            new_discord_points = chatter_document_discord['points_value'] - transfer_value
+            chatter_document_discord.update(points_value=new_discord_points)
+            chatter_document_discord.save()
+            new_twitch_points = chatter_document['user_points'] + transfer_value
+            chatter_document.update(user_points=new_twitch_points)
+            chatter_document.save()
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Transferred {transfer_value} to your twitch profile.")
+        elif direction == "discord":
+            if transfer_value > chatter_document['user_points']:
+                await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"You do not have enough discord points to transfer. You have {chatter_document['user_points']} points")
+                return
+            new_discord_points = chatter_document_discord['points_value'] + transfer_value
+            chatter_document_discord.update(points_value=new_discord_points)
+            chatter_document_discord.save()
+            new_twitch_points = chatter_document['user_points'] - transfer_value
+            chatter_document.update(user_points=new_twitch_points)
+            chatter_document.save()
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Transferred {transfer_value} to your discord profile.")
+        else:
+            await twitch_bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Backend Mess up.... {direction} is thee direction")
+            return
     except Exception as e:
         formatted_time = fortime()
-        logger.error(f"{formatted_time}: Error Connecting MongoDB -- {e}")
-        return None
-
-
-async def disconnect_mongo():
-    try:
-        disconnect_all()
-        logger.info(f"{long_dashes}\nDisconnected from MongoDB\n{long_dashes}")
-    except Exception as e:
-        formatted_time = fortime()
-        logger.error(f"{formatted_time}: Error Disconnection MongoDB -- {e}")
+        logger.error(f"{formatted_time}: Error in points_transfer -- {chatter_document['user_id']}/{chatter_document['user_name']}/{chatter_document['user_login']}/{chatter_document['user_discord_id']} -- {chatter_document_discord['author_id']}/{chatter_document_discord['author_name']}/{chatter_document_discord['guild_name']}/{chatter_document_discord['twitch_id']} -- {e}")
         return
 
 
-def setup_logger(name, log_file, level=logging.INFO):
+async def twitch_points_transfer(chatter_document, value: int, add: bool = True):
     try:
-        handler = logging.FileHandler(f"{logs_directory}{log_file}")
-        console_handler = logging.StreamHandler()
-        logger = logging.getLogger(name)
-        logger.setLevel(level)
-        logger.addHandler(handler)
-        logger.addHandler(console_handler)
-        return logger
+        if chatter_document is not None:
+            formatted_time = fortime()
+            if add:
+                new_user_points = chatter_document['user_points'] + value
+            else:
+                new_user_points = chatter_document['user_points'] - value
+            chatter_document.update(user_points=new_user_points, latest_chat_date=formatted_time)
+            chatter_document.save()
     except Exception as e:
         formatted_time = fortime()
-        print(f"{formatted_time}: ERROR in setup_logger -- {name}/{log_file}/{level} -- {e}")
-        return None
+        logger.error(f"{formatted_time}: Error in twitch_points_transfer -- {chatter_document['user_id']}/{chatter_document['user_name']}/{chatter_document['user_login']} -- {e}")
+        return
 
 
 logger = setup_logger('logger', 'log.log')
@@ -758,17 +756,13 @@ if None in (logger, chat_logger, gamble_logger):
     quit()
 
 while True:
-    def shutdown():
-        asyncio.run(disconnect_mongo())
-        time.sleep(1)
     try:
         # user_input = input("Enter 1 to start twitch bot\nEnter 2 to compile data\nEnter 0 to Exit Program\n")
-        user_input = input("Enter 1 to start twitch bot\nEnter 0 to Exit Program\n")
+        user_input = input("Enter 1 to start twitch bot\nEnter 3 to +/- time\nEnter 0 to Exit Program\n")
         if user_input.isdigit():
             user_input = int(user_input)
             if user_input == 0:
                 print(f"Exiting Program")
-                shutdown()
                 break
             elif user_input == 1:
                 try:
@@ -781,7 +775,6 @@ while True:
                         asyncio.run(disconnect_mongo())
                         formatted_time = fortime()
                         logger.error(f"{formatted_time}: Error connecting one of thee databases -- {twitch_database}/{discord_database} -- Quitting program")
-                        # quit()
                         break
                 except Exception as f:
                     formatted_time = fortime()
@@ -790,7 +783,7 @@ while True:
                 asyncio.run(run())
             elif user_input == 2:
                 print("Logic Not Coded")
-                # try:  # ToDo: Figure this shit out, so I can run thee .py file from within ChodeBot....
+                # try:  # ToDo: Figure this shit out, so I can run thee .py file from within ChodeBot....  # PROBABLY WILL NEVER USE BUTT JUST IN CASE
                 #     def join_path(relative_path: str):
                 #         try:
                 #             print(os.path.join("py ", countdown_path, relative_path))
@@ -822,10 +815,10 @@ while True:
                         break
                     else:
                         print(f"Invalid Input -- You put '{number}' which is a {type(number)} -- USE NUMPAD +/-!!")
-            # elif user_input == 3:
+            # elif user_input == 4:  # PROBABLY NEVER USE BUTT JUST IN CASE
             #     threading.Thread(target=CountDown().start()).run()
             #     clock_thread = threading.Thread(target=CountDown().start()).run()
-            # elif user_input == 4:
+            # elif user_input == 5:
             #     CountDown().stop()
             #     # clock_thread.
             else:
@@ -835,7 +828,6 @@ while True:
     except Exception as e:
         if KeyboardInterrupt:
             print(f"Exiting Program")
-            shutdown()
             break
         else:
             formatted_time = fortime()
