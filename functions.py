@@ -41,7 +41,7 @@ def read_clock():
         return timer
 
 
-def write_clock(seconds: int, add: bool = False, pwr_hr: bool = False):
+def write_clock(seconds: int, pwr_hr: bool = False, add: bool = False):
     try:
         with open(clock, "r") as file_read:
             timer = file_read.read()

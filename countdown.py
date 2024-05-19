@@ -63,7 +63,7 @@ while True:
                         user_seconds = user_seconds.lstrip("-").lstrip("+")
                         if user_seconds.isdigit():
                             user_seconds = int(user_seconds)
-                            write_clock(user_seconds, add)
+                            write_clock(user_seconds, add=add)
                             input("Hit ENTER To Start Thee Timer!\n")
                             timer = read_clock()
                             total_seconds = get_sec(timer)

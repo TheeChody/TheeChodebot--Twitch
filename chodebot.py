@@ -60,6 +60,7 @@ target_scopes = [AuthScope.BITS_READ,
                  AuthScope.CHANNEL_MANAGE_PREDICTIONS,
                  AuthScope.CHANNEL_READ_PREDICTIONS]  # ToDo: FIGURE OUT WHY THEE PREDICTION SHIT FLIPS OUT ON END/LOCK CALL!!!!!!!!!!!
 registered_commands = [f"{cmd}commands",
+                       f"{cmd}discord",
                        f"{cmd}gamble NUMBER_HERE",
                        f"{cmd}lastcomment",
                        f"{cmd}leaderbitties",
@@ -92,7 +93,7 @@ async def on_stream_bits_ext_transfer(data: ExtensionBitsTransactionCreateEvent)
             await twitch_points_transfer(chatter_document, points_to_add)
         if writing_to_clock:
             seconds = round(standard_seconds * data.event.product.bits)
-            write_clock(seconds, pwr_hr=power_hour_enabled)
+            write_clock(seconds, power_hour_enabled, True)
             formatted_time_added = datetime.timedelta(seconds=seconds)
             response = f", adding {formatted_time_added} to thee clock!!"
         await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.user_name} used {data.event.product.bits} on {data.event.product.name}{response}")
@@ -195,7 +196,6 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 return
         elif data.event.message.text.startswith(f"{cmd}hug"):
             await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} Big Chody Hugs!!!", reply_parent_message_id=data.event.message_id)
-            write_clock(3600, True)  # ToDo: DON'T LEAVE THIS HERE DUMMY
         elif data.event.message.text.startswith(f"{cmd}pt"):
             try:
                 if chatter_document['user_discord_id'] == 0:
@@ -282,7 +282,7 @@ async def on_stream_cheer(data: ChannelCheerEvent):
                 await twitch_points_transfer(chatter_document, points_to_add)
         if writing_to_clock:
             seconds = round(standard_seconds * data.event.bits)
-            write_clock(seconds, pwr_hr=power_hour_enabled)
+            write_clock(seconds, power_hour_enabled, True)
             formatted_time_added = datetime.timedelta(seconds=seconds)
             response = f', adding {formatted_time_added} to thee clock!!'
         await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{user} has cheered {data.event.bits}{response}")
@@ -434,7 +434,7 @@ async def on_stream_subbie(data: ChannelSubscribeEvent):
         if writing_to_clock:
             seconds = round(standard_seconds * sub_tier)  # ToDo: FIGURE OUT THIS MATHS SHIT....
             # seconds = int(standard_seconds * sub_tier)  # ToDo: Think This Maths Shit is Figured??? Now to test.... note using round, think it's more fair
-            write_clock(seconds, pwr_hr=power_hour_enabled)
+            write_clock(seconds, power_hour_enabled, True)
             formatted_time_added = datetime.timedelta(seconds=seconds)
             response = f', adding {formatted_time_added} to thee clock!!'
         else:
@@ -462,7 +462,7 @@ async def on_stream_subbie_gift(data: ChannelSubscriptionGiftEvent):
                 await twitch_points_transfer(chatter_document, points_to_add)
         if writing_to_clock:
             seconds = round(standard_seconds * sub_tier)
-            write_clock(seconds, pwr_hr=power_hour_enabled)
+            write_clock(seconds, power_hour_enabled, True)
             formatted_time_added = datetime.timedelta(seconds=seconds)
             response = f" Added {formatted_time_added} to thee clock!!"
         await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{user} gifted out {data.event.total} {'subbie' if data.event.total == 1 else 'subbies'} to Thee Chodelings. {user_response}  Thank You :) Much Love <3{response}")
@@ -477,7 +477,7 @@ async def on_stream_raid_in(data: ChannelRaidEvent):
         response = "!!!"
         if writing_to_clock:
             seconds = round((standard_seconds * raid_mult) * data.event.viewers)
-            write_clock(seconds, pwr_hr=power_hour_enabled)
+            write_clock(seconds, power_hour_enabled, True)
             formatted_time_added = datetime.timedelta(seconds=seconds)
             response = f" adding {formatted_time_added} to thee clock!!!"
         await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.from_broadcaster_user_name} raid with {data.event.viewers} incoming{response} Go show them some love back y'all")
@@ -657,6 +657,7 @@ async def run():
     await event_sub.listen_stream_online(user.id, on_stream_start)
     await event_sub.listen_stream_offline(user.id, on_stream_end)
 
+    # Bot's Loop
     while True:
         async def shutdown():
             try:
@@ -710,7 +711,7 @@ async def run():
                 elif user_input == 4:
                     number, add = get_user_input_clock()
                     if number.isdigit():
-                        write_clock(int(number), add)
+                        write_clock(int(number), False, add)
                     else:
                         print(f"Invalid Input -- You put '{number}' - If None, see error logs - which is a {type(number)} -- USE NUMPAD +/-!!")
                 else:
@@ -966,7 +967,7 @@ if None in (logger, chat_logger, gamble_logger):
     print(f"One of thee loggers isn't setup right -- {logger}/{chat_logger}/{gamble_logger} -- Quitting program")
     quit()
 
-
+# Main Loop
 while True:
     #  asyncio.create_task(countdown())  # Think about this?? Might allow for bot to execute countdown??
     try:
@@ -1017,7 +1018,7 @@ while True:
                 while True:
                     number, add = get_user_input_clock()
                     if number.isdigit():
-                        write_clock(int(number), add)
+                        write_clock(int(number), False, add)
                         break
                     else:
                         print(f"Invalid Input -- You put '{number}' - If None, see error logs -  which is a {type(number)} -- USE NUMPAD +/-!!")
