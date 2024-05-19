@@ -8,6 +8,7 @@ if getattr(sys, 'frozen', False):
 else:
     application_path = os.path.dirname(__file__)
 
+power_hour_mult = 2  # Power Hour Multiplier Value
 countdown_path = f"{Path(__file__).parent.absolute()}\\"
 data_directory = f"{application_path}\\data\\"
 logs_directory = f"{application_path}\\logs\\"
@@ -40,12 +41,14 @@ def read_clock():
         return timer
 
 
-def write_clock(seconds: int, add: bool = False):
+def write_clock(seconds: int, add: bool = False, pwr_hr: bool = False):
     try:
         with open(clock, "r") as file_read:
             timer = file_read.read()
         total_seconds = get_sec(timer)
         total_seconds = int(total_seconds)
+        if pwr_hr:
+            seconds *= power_hour_mult
         if add:
             total_seconds += seconds
             timer = datetime.timedelta(seconds=total_seconds)

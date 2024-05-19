@@ -8,14 +8,14 @@ def countdown(total_seconds):
     while total_seconds >= 1:
         try:
             write_clock(1)
-            total_seconds = get_sec(read_clock())
-            print(read_clock()), time.sleep(1)
+            timer = read_clock()
+            total_seconds = get_sec(timer)
+            print(timer), time.sleep(1)
         except KeyboardInterrupt:
             break
-    total_seconds = get_sec(read_clock())
-    print(total_seconds, f"TESTING STUFFS")
+    print(read_clock(), f"TESTING STUFFS")
     if total_seconds <= 0:
-        print("Bzzzt! The countdown is at zero seconds!")
+        print("Thee countdown has reached zero seconds! Writing Reset Time!")
         with open(clock, "w") as file:
             file.write(clock_reset_time)
 
