@@ -9,11 +9,13 @@ class Channel(Document):
     channel_game = DynamicField(default="")
     channel_game_id = DynamicField(default=0)
     channel_content_class = ListField(default=[])
-    hype_train_last = DynamicField(default="")
+    hype_train_last = DateTimeField(default=None)
     hype_train_current = BooleanField(default=False)
     hype_train_current_level = IntField(default=0)
     hype_train_record_level = IntField(default=0)
     cmd_gamble_last_chatter = DynamicField(default="")
+    latest_bitties = DateTimeField(default=None)
+    latest_subbie = DateTimeField(default=None)
     meta = {"db_alias": "default"}
 
 
@@ -40,8 +42,8 @@ class Users(Document):
     user_id = IntField(primary_key=True)
     user_name = DynamicField(default="")
     user_login = DynamicField(default="")
-    user_points = IntField(default=0)
-    first_chat_date = DynamicField(default="")
-    latest_chat_date = DynamicField(default="")
     user_discord_id = IntField(default=0)
+    user_points = IntField(default=0)
+    first_chat_date = DateTimeField(default=None)
+    latest_chat_date = DateTimeField(default=None)
     meta = {"db_alias": "default"}

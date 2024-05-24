@@ -1,3 +1,6 @@
+"""
+All currency in USD
+"""
 import os
 # import math  # Was going to use this for rounding down, however learned that int()'ing does thee same thing. However, again, I may just go back to round, as that's more fair
 import time
@@ -16,30 +19,38 @@ from twitchAPI.oauth import UserAuthenticationStorageHelper
 from mongoengine import connect, disconnect_all, DEFAULT_CONNECTION_NAME
 from functions import logs_directory, chat_log, read_clock, write_clock, long_dashes
 # from twitchAPI.chat import Chat, ChatCommand, EventData, ChatMessage, ChatUser, ChatSub  # Maybe attempt this again? IDK
-from twitchAPI.object.eventsub import ChannelAdBreakBeginEvent, ChannelChatMessageEvent, ChannelCheerEvent, ChannelFollowEvent, \
-    StreamOnlineEvent, StreamOfflineEvent, HypeTrainEvent, HypeTrainEndEvent, ChannelPollBeginEvent, ChannelPollEndEvent, \
-    ChannelRaidEvent, ChannelPointsCustomRewardRedemptionAddEvent, ChannelSubscribeEvent, ChannelSubscriptionGiftEvent, \
-    ChannelUpdateEvent, ChannelPredictionEvent, ChannelPredictionEndEvent, ChannelChatNotificationEvent, \
-    ExtensionBitsTransactionCreateEvent
+from twitchAPI.object.eventsub import ChannelAdBreakBeginEvent, ChannelChatMessageEvent, ChannelChatNotificationEvent, \
+    ChannelCheerEvent, ChannelFollowEvent, ChannelPollBeginEvent, ChannelPollEndEvent, ChannelPointsCustomRewardRedemptionAddEvent, \
+    ChannelPredictionEvent, ChannelPredictionEndEvent, ChannelRaidEvent, ChannelSubscribeEvent, ChannelSubscriptionGiftEvent, \
+    ChannelUpdateEvent, ExtensionBitsTransactionCreateEvent,  HypeTrainEvent, HypeTrainEndEvent, StreamOnlineEvent, StreamOfflineEvent
+
 
 # ToDo List ------------------------------------------------------------------------------------------------------------
 #  There is some heavy stuff in on_stream_chat_messages
+#  Add/change date times in documents from dynamic/string fields to date time fields -- Did - to Test
+#  Add a variable in channel document to keep track of last monetary event and if next one within a defined threshold  -- Channel part added doc
+#  add a mult bonus for adding to 'hype event' that can trigger a 'power hour', if power hour is triggered all prior  -- Still to do this and next line
+#  monetary events within thee threshold are added in as power hour time, if not, added in normally after threshold done
 #  ---------------------------------------------------- End of List ----------------------------------------------------
 
-cmd = "$"
+
+cmd = "$"  # What thee commands start with
+raid_seconds = 30  # How many Seconds PER Raid Viewer to add to thee clock
+standard_points = 5  # Base value -- points for chatting, bitties, subbing/resubbing, gifting subbies etc.
+standard_seconds = 1  # Base value -- Seconds per Cents  AKA: 1Second = 1cent per 1Sec = $36/Hour //// 2Second = 1cent per 2Sec = $18/Hour
+writing_to_clock = False  # Marathon started? Either configure this or in bot loop, option to set it there
+power_hour_enabled = False  # In a marathon? Power hour on? In bot loop, option to set it there
+discord_link = "http://discord.theechody.ca"  # Your discord link here
+response_thanks = f" Much Love <3"  # A response message one wants to be repeated at thee end of monetary things, START with a SPACE
+
 load_dotenv()
-standard_points = 5
-standard_seconds = 1  # How many Cents/Sec  AKA: 1 second = 1 Cent/1 Sec = $36/Hour / 1 Cent/2 Sec = $18/Hour
-raid_mult = 30
-writing_to_clock = False
-power_hour_enabled = False
-discord_link = "http://discord.theechody.ca"
 id_twitch_client = os.getenv("client")
 id_twitch_secret = os.getenv("secret")
 id_broadcaster_account = os.getenv("broadcaster")
 mongo_login_string = os.getenv("monlog_string")
 mongo_twitch_collection = os.getenv("montwi_string")
 mongo_discord_collection = os.getenv("mondis_string")
+
 target_scopes = [AuthScope.BITS_READ,
                  AuthScope.CLIPS_EDIT,
                  AuthScope.CHANNEL_BOT,
@@ -62,13 +73,11 @@ target_scopes = [AuthScope.BITS_READ,
 registered_commands = [f"{cmd}commands",
                        f"{cmd}discord",
                        f"{cmd}gamble NUMBER_HERE",
+                       f"{cmd}hug",
                        f"{cmd}lastcomment",
                        f"{cmd}leaderbitties",
                        f"{cmd}pt discord/twitch NUMBER_HERE"]  # ToDo: Think about making use of this as a tuple and checking thru to see if thee bits before spaces match?
 bot = Twitch(id_twitch_client, id_twitch_secret)
-# chat_bot = Chat(bot)
-# chat_bot._prefix = "$"
-name_broadcaster_account = "TheeChody"
 
 
 async def on_stream_ad_start(data: ChannelAdBreakBeginEvent):
@@ -132,18 +141,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 return
         elif data.event.message.text.replace(" ", "") in (f"{cmd}discord", f"{cmd}discord link"):
             await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} thee discord link is: {discord_link}")
-        elif data.event.message.text.replace(" ", "") in (f"{cmd}leaderbitties", f"{cmd}leaderbits"):
-            try:
-                bits_lb = await bot.get_bits_leaderboard()
-                print(bits_lb.total)
-                users_board = ""
-                for user in bits_lb:
-                    users_board += f"#{user.rank:02d}: {user.user_name}: {user.score} - "
-                await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Bitties 4 Titties Leaderboard: {users_board[:-3]}")
-            except Exception as f:
-                formatted_time = fortime()
-                logger.error(f"{formatted_time}: Error in on_stream_chat_message - leaderbitties command -- {f}")
-                return
+            return
         elif data.event.message.text.replace(" ", "") in (f"{cmd}lastcomment", f"{cmd}lastmessage", "!lastcomment", "!lastmessage"):
             if data.event.chatter_user_id == id_broadcaster_account:
                 return
@@ -160,6 +158,18 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
             except Exception as f:
                 formatted_time = fortime()
                 logger.error(f"{formatted_time}: Error in on_stream_chat_message - lastcomment command -- {f}")
+                return
+        elif data.event.message.text.replace(" ", "") in (f"{cmd}leaderbitties", f"{cmd}leaderbits"):
+            try:
+                bits_lb = await bot.get_bits_leaderboard()
+                print(bits_lb.total)
+                users_board = ""
+                for user in bits_lb:
+                    users_board += f"#{user.rank:02d}: {user.user_name}: {user.score} - "
+                await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Bitties 4 Titties Leaderboard: {users_board[:-3]}")
+            except Exception as f:
+                formatted_time = fortime()
+                logger.error(f"{formatted_time}: Error in on_stream_chat_message - leaderbitties command -- {f}")
                 return
         elif data.event.message.text.startswith(f"{cmd}gamble"):
             try:
@@ -196,6 +206,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 return
         elif data.event.message.text.startswith(f"{cmd}hug"):
             await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} Big Chody Hugs!!!", reply_parent_message_id=data.event.message_id)
+            return
         elif data.event.message.text.startswith(f"{cmd}pt"):
             try:
                 if chatter_document['user_discord_id'] == 0:
@@ -260,7 +271,11 @@ async def on_stream_chat_notification(data: ChannelChatNotificationEvent):
     - charity_donation"""
     try:
         if data.event.notice_type == "resub":
-            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} is on a {data.event.resub.streak_months} streak! {data.event.resub.cumulative_months} total months subscribed. Much Love <3")
+            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} is on a {data.event.resub.streak_months} streak! {data.event.resub.cumulative_months} total months subscribed.{response_thanks}")
+        elif data.event.notice_type == "pay_it_forward":
+            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} is paying forward thee subbie gifted by {data.event.pay_it_forward.gifter_user_name}.{response_thanks}")
+        elif data.event.notice_type == "bits_badge_tier":
+            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} just unlocked thee {data.event.bits_badge_tier.tier} bitties badge!!{response_thanks}")
         else:
             print(f"on_stream_chat_notification -- {data.event.notice_type}")
     except Exception as e:
@@ -476,7 +491,7 @@ async def on_stream_raid_in(data: ChannelRaidEvent):
     try:
         response = "!!!"
         if writing_to_clock:
-            seconds = round((standard_seconds * raid_mult) * data.event.viewers)
+            seconds = round(raid_seconds * data.event.viewers)
             write_clock(seconds, power_hour_enabled, True)
             formatted_time_added = datetime.timedelta(seconds=seconds)
             response = f" adding {formatted_time_added} to thee clock!!!"
@@ -541,79 +556,6 @@ async def on_stream_end(data: StreamOfflineEvent):
         return
 
 
-# async def chat_event_on_ready(ready_event: EventData):
-#     await ready_event.chat.join_room(name_broadcaster_account)
-#     print(f"Joined {name_broadcaster_account} Chat Room")
-#
-#
-# async def chat_event_message(msg: ChatMessage):
-#     def get_last_chatter():
-#         last_chatter_name = "'--NO_NAME_AT_ALL--'"
-#         try:
-#             with open(chat_log, "r") as file:
-#                 chat_logs = file.read()
-#             chat_logs = list(map(str, chat_logs.splitlines()))
-#             for last in reversed(chat_logs):
-#                 if last.startswith(id_broadcaster_account):
-#                     pass
-#                 else:
-#                     last_chatter_id, last_chatter_name = last.split("/", maxsplit=1)
-#                     last_chatter_name, last_chatter_message = last_chatter_name.split(": ", maxsplit=1)
-#                     break
-#             return last_chatter_name
-#         except Exception as f:
-#             print(f"Error in get_last_chatter - via on_stream_chat_message -- {f}")
-#             return last_chatter_name
-#
-#     last_chatter = get_last_chatter()
-#     msg_starts_with = (f"{msg.reply_parent_display_name}",
-#                        f"@{msg.reply_parent_display_name}",
-#                        f"{last_chatter}",
-#                        f"@{last_chatter}")
-#     try:
-#         if msg.user.id == id_broadcaster_account and msg.text.startswith(msg_starts_with):
-#             logger.info(f"{long_dashes}Own Account Block Activated\n{msg.text}\n{long_dashes}")
-#             return
-#         chatter_document = await get_chatter_document(msg)
-#         await twitch_points_transfer(chatter_document, standard_points)
-#         chat_logger.info(f"{msg.user.id}/{msg.user.display_name}: {msg.text if type(msg.text) == str else 'not a text message'}")
-#     except Exception as e:
-#         formatted_time = fortime()
-#         logger.error(f"{formatted_time}: Error in on_stream_chat_message - else - twitch_points? -- {e}")
-#
-#
-# async def command_last_comment(cmd: ChatCommand):
-#     try:
-#         chatter_document = await get_chatter_document(cmd)
-#         last_message = None
-#         last_message_time = None
-#         with open(chat_log, "r") as file:
-#             chat_logs = file.read()
-#         chat_logs = list(map(str, chat_logs.splitlines()))
-#         for last in reversed(chat_logs):
-#             if last.startswith(cmd.user.id):
-#                 user_name, last_message = last.split(": ", maxsplit=1)
-#                 break
-#         if chatter_document is not None:
-#             last_message_time = chatter_document['latest_chat_date']
-#         await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{name_broadcaster_account}!!!! {cmd.user.display_name}'s last message was: {last_message if not None else 'Not Found!!!'}{f' - Sent @ {last_message_time} MST' if last_message is not None and last_message_time is not None else ''}")
-#         # await chat_bot.send_message(name_broadcaster_account, f"{name_broadcaster_account}!!!! {cmd.user.display_name}'s last message was: {last_message if not None else 'Not Found!!!'}{f' - Sent @ {last_message_time} MST' if last_message is not None and last_message_time is not None else ''}")
-#     except Exception as f:
-#         formatted_time = fortime()
-#         logger.error(f"{formatted_time}: Error in on_stream_chat_message - lastcomment command -- {f}")
-#         return
-#
-
-# async def chat_event_subbie(msg: ChatSub):
-#     if msg.sub_type == "sub":
-#         pass
-#     elif msg.sub_type == "resub":
-#         pass
-#     elif msg.sub_type == "subgift":
-#         msg.sub
-#         pass
-
-
 async def run():
     global power_hour_enabled, writing_to_clock
     twitch_helper = UserAuthenticationStorageHelper(bot, target_scopes)
@@ -623,16 +565,6 @@ async def run():
 
     event_sub = EventSubWebsocket(bot)
     event_sub.start()
-
-    # chat_bot = Chat(bot)
-    # chat_bot.set_prefix = "$"
-    #
-    # chat_bot.register_event(ChatEvent.READY, chat_event_on_ready)
-    # chat_bot.register_event(ChatEvent.MESSAGE, chat_event_message)
-    # # chat_bot.register_event(ChatEvent.SUB, chat_event_subbie)
-    # chat_bot.register_command("lastcomment".replace(" ", ""), command_last_comment)
-    #
-    # chat_bot.start()
 
     await event_sub.listen_channel_ad_break_begin(user.id, on_stream_ad_start)
     # await event_sub.listen_extension_bits_transaction_create(id_broadcaster_account, on_stream_bits_ext_transfer)  # WebHooks Needed For This
@@ -759,7 +691,7 @@ def get_user_input_clock():
         return number, add
     except Exception as e:
         formatted_time = fortime()
-        logger.error(f"Error in get_user_input_clock -- {e}")
+        logger.error(f"{formatted_time}: Error in get_user_input_clock -- {e}")
         return None, None
 
 
@@ -834,14 +766,6 @@ async def get_channel_document(data):
 
 
 async def get_chatter_document(data):
-    # if type(data) in (ChatMessage, ChatSub):
-    #     chatter_id = data.user.id
-    #     chatter_name = data.user.display_name
-    #     chatter_login = data.user.name
-    # else:
-    #     chatter_id = data.event.chatter_user_id
-    #     chatter_name = data.event.chatter_user_name
-    #     chatter_login = data.event.chatter_user_login
     try:
         chatter_id = data.event.chatter_user_id
         chatter_name = data.event.chatter_user_name
@@ -946,12 +870,14 @@ async def document_points_transfer(direction, transfer_value, chatter_document, 
 async def twitch_points_transfer(chatter_document, value: int, add: bool = True):
     try:
         if chatter_document is not None:
-            formatted_time = fortime()
+            # formatted_time = fortime()
+            last_chatted = datetime.datetime.now()
+            print(last_chatted, type(last_chatted))
             if add:
                 new_user_points = chatter_document['user_points'] + value
             else:
                 new_user_points = chatter_document['user_points'] - value
-            chatter_document.update(user_points=new_user_points, latest_chat_date=formatted_time)
+            chatter_document.update(user_points=new_user_points, latest_chat_date=last_chatted)
             chatter_document.save()
     except Exception as e:
         formatted_time = fortime()
@@ -974,7 +900,6 @@ while True:
         options = ["Enter 1 to start twitch bot",
                    "Enter 3 to +/- time",
                    "Enter 0 to Exit Program"]
-        # user_input = input("Enter 1 to start twitch bot\nEnter 2 to compile data\nEnter 0 to Exit Program\n")
         user_input = input("\n".join(options) + "\n")
         if user_input.isdigit():
             user_input = int(user_input)

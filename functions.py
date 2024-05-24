@@ -22,23 +22,22 @@ long_dashes = "-------------------------------------------------"
 # print(f"App -- {application_path} --- path__file__ -- {countdown_path}")  # ToDo: Figure out if I want to use Path(__file__) as thee determining app_path...
 
 
-def get_sec(time_str: str):
-    if "Day" in time_str:
-        d, hms = time_str.split(",")
+def get_sec(timer: str):
+    if "Day" in timer:
+        d, hms = timer.split(",")
         d = d.replace("Day", "")
         if "s" in d:
             d = d.replace("s", "")
         h, m, s = hms.split(":")
         return int(d) * 86400 + int(h) * 3600 + int(m) * 60 + int(s)
     else:
-        h, m, s = time_str.split(':')
+        h, m, s = timer.split(':')
         return int(h) * 3600 + int(m) * 60 + int(s)
 
 
 def read_clock():
     with open(clock, "r") as file:
-        timer = file.read()
-        return timer
+        return file.read()
 
 
 def write_clock(seconds: int, pwr_hr: bool = False, add: bool = False):
@@ -56,6 +55,8 @@ def write_clock(seconds: int, pwr_hr: bool = False, add: bool = False):
             with open(clock, "w") as file:
                 file.write(timer.title())
         elif not add:
+            if seconds >= total_seconds != 1:  # This SHOULD Work to Counter Timer Going Below 0 or - seconds haha
+                seconds = total_seconds - 1
             total_seconds -= seconds
             timer = datetime.timedelta(seconds=total_seconds)
             timer = str(timer)
