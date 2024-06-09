@@ -17,31 +17,37 @@ from mondocs import Users, EconomyData, Channel
 from twitchAPI.eventsub.websocket import EventSubWebsocket
 from twitchAPI.oauth import UserAuthenticationStorageHelper
 from mongoengine import connect, disconnect_all, DEFAULT_CONNECTION_NAME
-from functions import logs_directory, chat_log, read_clock, write_clock, long_dashes
+from functions import logs_directory, chat_log, read_clock, write_clock, long_dashes, reset_max_time, reset_total_time, reset_current_time
 # from twitchAPI.chat import Chat, ChatCommand, EventData, ChatMessage, ChatUser, ChatSub  # Maybe attempt this again? IDK
 from twitchAPI.object.eventsub import ChannelAdBreakBeginEvent, ChannelChatMessageEvent, ChannelChatNotificationEvent, \
     ChannelCheerEvent, ChannelFollowEvent, ChannelPollBeginEvent, ChannelPollEndEvent, ChannelPointsCustomRewardRedemptionAddEvent, \
     ChannelPredictionEvent, ChannelPredictionEndEvent, ChannelRaidEvent, ChannelSubscribeEvent, ChannelSubscriptionGiftEvent, \
-    ChannelUpdateEvent, ExtensionBitsTransactionCreateEvent,  HypeTrainEvent, HypeTrainEndEvent, StreamOnlineEvent, StreamOfflineEvent
+    ChannelUpdateEvent, ExtensionBitsTransactionCreateEvent, HypeTrainEvent, HypeTrainEndEvent, StreamOnlineEvent, StreamOfflineEvent  #, GoalEvent
 
 
 # ToDo List ------------------------------------------------------------------------------------------------------------
+#  FollowAge
+#  --- Hype system that works up to a power hour ei;                      --- TRYING HYPE TRAIN system -- IS IMPLEMENTED           |
+#  user1 throws 1000 bitties, user2 throws 500, in quick order, third user that throws bitties or subbies starts a                 |
+#  'Power Hype Hour' were a certain threshold must be reached in order for all monetary stuffz to count as power hour stuff, or    |
+#  gets added as normal after time limit is exceeded if unsuccessful ---                                                           |
 #  There is some heavy stuff in on_stream_chat_messages
 #  Add/change date times in documents from dynamic/string fields to date time fields -- Did - to Test
 #  Add a variable in channel document to keep track of last monetary event and if next one within a defined threshold  -- Channel part added doc
-#  add a mult bonus for adding to 'hype event' that can trigger a 'power hour', if power hour is triggered all prior  -- Still to do this and next line
-#  monetary events within thee threshold are added in as power hour time, if not, added in normally after threshold done
 #  ---------------------------------------------------- End of List ----------------------------------------------------
 
+# fish_rewards =   # ToDo FIGURE OUT NESTED DICTIONARIES AGAIN <<<<< NEED A REFRESHER!!! USE {name, points, **MAYBE LITTLE DESCRIPTION**} and randomize through when $fish is used, add points to twitch user document
 
 cmd = "$"  # What thee commands start with
 raid_seconds = 30  # How many Seconds PER Raid Viewer to add to thee clock
+follow_seconds = 30  # How many Seconds PER Follower to add to thee clock
 standard_points = 5  # Base value -- points for chatting, bitties, subbing/resubbing, gifting subbies etc.
 standard_seconds = 1  # Base value -- Seconds per Cents  AKA: 1Second = 1cent per 1Sec = $36/Hour //// 2Second = 1cent per 2Sec = $18/Hour
 writing_to_clock = False  # Marathon started? Either configure this or in bot loop, option to set it there
-power_hour_enabled = False  # In a marathon? Power hour on? In bot loop, option to set it there
+thee_hype_ehvent_enabled = False  # In a marathon? New System Uses HypeTrains to trigger, however can still be manually turned on/off via bot loop
 discord_link = "http://discord.theechody.ca"  # Your discord link here
 response_thanks = f" Much Love <3"  # A response message one wants to be repeated at thee end of monetary things, START with a SPACE
+channel_point_name = "Theebucks"
 
 load_dotenv()
 id_twitch_client = os.getenv("client")
@@ -58,6 +64,7 @@ target_scopes = [AuthScope.BITS_READ,
                  AuthScope.USER_WRITE_CHAT,
                  AuthScope.CHANNEL_MODERATE,
                  AuthScope.CHANNEL_READ_ADS,
+                 AuthScope.CHANNEL_READ_GOALS,
                  AuthScope.USER_READ_BROADCAST,
                  AuthScope.CHANNEL_MANAGE_POLLS,
                  AuthScope.USER_MANAGE_WHISPERS,
@@ -76,6 +83,7 @@ registered_commands = [f"{cmd}commands",
                        f"{cmd}hug",
                        f"{cmd}lastcomment",
                        f"{cmd}leaderbitties",
+                       f"{cmd}lurk",
                        f"{cmd}pt discord/twitch NUMBER_HERE"]  # ToDo: Think about making use of this as a tuple and checking thru to see if thee bits before spaces match?
 bot = Twitch(id_twitch_client, id_twitch_secret)
 
@@ -102,7 +110,7 @@ async def on_stream_bits_ext_transfer(data: ExtensionBitsTransactionCreateEvent)
             await twitch_points_transfer(chatter_document, points_to_add)
         if writing_to_clock:
             seconds = round(standard_seconds * data.event.product.bits)
-            write_clock(seconds, power_hour_enabled, True)
+            write_clock(seconds, thee_hype_ehvent_enabled, True)
             formatted_time_added = datetime.timedelta(seconds=seconds)
             response = f", adding {formatted_time_added} to thee clock!!"
         await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.user_name} used {data.event.product.bits} on {data.event.product.name}{response}")
@@ -114,13 +122,11 @@ async def on_stream_bits_ext_transfer(data: ExtensionBitsTransactionCreateEvent)
 
 async def on_stream_chat_message(data: ChannelChatMessageEvent):
     # ToDo: ------------------------------------------------------------------------------------------------------------
-    #  Add .startswith for cheer, to multiply points added later on--
-    #  --or like maybe that should live in thee cheer area??? or would that be too smart?
-    #  On that note, add identifiers for subbies, gifted subbies to add points
     #  Really there's a lot to do - Add new code for doing new things, new commands for mods--
     #  --just so much to take care of and do
     #  Think HEAVILY on moving chat_logs data to channel_document--
     #  --possibly have a new 'list' of chat entries for each stream day.
+    #  Little 'mini-games' -- tag, pants, fight, fish, bet
     #  -------------------------------------- End of on_stream_chat_message List ---------------------------------------
     try:
         if data.event.chatter_user_id == id_broadcaster_account and not data.event.message.text.startswith(cmd):
@@ -139,7 +145,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 formatted_time = fortime()
                 logger.error(f"{formatted_time}: Error in on_stream_chat_message - commands command -- {f}")
                 return
-        elif data.event.message.text.replace(" ", "") in (f"{cmd}discord", f"{cmd}discord link"):
+        elif data.event.message.text.replace(" ", "") in (f"{cmd}discord", f"{cmd}discordlink"):
             await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} thee discord link is: {discord_link}")
             return
         elif data.event.message.text.replace(" ", "") in (f"{cmd}lastcomment", f"{cmd}lastmessage", "!lastcomment", "!lastmessage"):
@@ -207,6 +213,42 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
         elif data.event.message.text.startswith(f"{cmd}hug"):
             await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} Big Chody Hugs!!!", reply_parent_message_id=data.event.message_id)
             return
+        elif data.event.message.text.startswith(f"{cmd}joe"):
+            try:
+                if data.event.chatter_user_id == "806552159":  # Joe's id
+                    response = f"Damnit Me!!!"
+                else:
+                    response = f"Damnit Joe!!!"
+                await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, response)
+            except Exception as f:
+                formatted_time = fortime()
+                logger.error(f"{formatted_time}: Error in on_stream_chat_message - joe command -- {f}")
+        elif data.event.message.text.startswith(f"{cmd}lore"):
+            try:
+                if data.event.chatter_user_id == "170147951":  # Maylore's id
+                    response = f"Fucking run Chody!! Run! It's Maylore himself here to taunt you"
+                else:
+                    response = f"{chatter_username} is taunting you with Maylore's command"
+                await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, response)
+            except Exception as f:
+                formatted_time = fortime()
+                logger.error(f"{formatted_time}: Error in on_stream_chat_message - lore command -- {f}")
+        elif data.event.message.text.startswith(f"{cmd}lurk"):
+            try:
+                await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} fades off into thee shadows. Much love", reply_parent_message_id=data.event.message_id)
+            except Exception as f:
+                formatted_time = fortime()
+                logger.error(f"{formatted_time}: Error in on_stream_chat_message - lurk command -- {f}")
+                return
+        elif data.event.message.text.startswith(f"{cmd}pointscheck"):
+            try:
+                if chatter_document is not None:
+                    await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} you have {chatter_document['user_points']} points")
+                else:
+                    await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{chatter_username} something went wrong getting your chatter_document")
+            except Exception as f:
+                formatted_time = fortime()
+                logger.error(f"{formatted_time}: Error in on_stream_chat_message - points check command -- {f}")
         elif data.event.message.text.startswith(f"{cmd}pt"):
             try:
                 if chatter_document['user_discord_id'] == 0:
@@ -221,6 +263,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                     return
                 chatter_document_discord = await get_discord_document(chatter_document)
                 if chatter_document_discord is None:
+                    print(f"{chatter_username}'s discord document is NONE. Something went wrong. ")
                     return
                 if data.event.message.text.lstrip(f"{cmd}pt ").startswith("witch"):
                     transfer_value = data.event.message.text.lstrip(f"{cmd}pt twitch ")
@@ -270,6 +313,7 @@ async def on_stream_chat_notification(data: ChannelChatNotificationEvent):
     - bits_badge_tier
     - charity_donation"""
     try:
+        logger.info(f"CHAT_NOTIFICATION--Type - {data.event.notice_type}")
         if data.event.notice_type == "resub":
             await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.chatter_user_name} is on a {data.event.resub.streak_months} streak! {data.event.resub.cumulative_months} total months subscribed.{response_thanks}")
         elif data.event.notice_type == "pay_it_forward":
@@ -286,7 +330,7 @@ async def on_stream_chat_notification(data: ChannelChatNotificationEvent):
 
 async def on_stream_cheer(data: ChannelCheerEvent):
     try:
-        response = '!'
+        response = "!"
         if data.event.is_anonymous:
             user = "Anonymous"
         else:
@@ -297,7 +341,7 @@ async def on_stream_cheer(data: ChannelCheerEvent):
                 await twitch_points_transfer(chatter_document, points_to_add)
         if writing_to_clock:
             seconds = round(standard_seconds * data.event.bits)
-            write_clock(seconds, power_hour_enabled, True)
+            write_clock(seconds, thee_hype_ehvent_enabled, True)
             formatted_time_added = datetime.timedelta(seconds=seconds)
             response = f', adding {formatted_time_added} to thee clock!!'
         await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{user} has cheered {data.event.bits}{response}")
@@ -309,7 +353,17 @@ async def on_stream_cheer(data: ChannelCheerEvent):
 
 async def on_stream_follow(data: ChannelFollowEvent):
     try:
-        await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Welcome {data.event.user_name} to Thee Chodeling's Nest!")
+        chatter_document = await get_chatter_document(data)
+        if chatter_document is not None:
+            points_to_add = round(standard_seconds * follow_seconds)
+            await twitch_points_transfer(chatter_document, points_to_add)
+        response = "!"
+        if writing_to_clock:
+            seconds = round(standard_seconds * follow_seconds)
+            write_clock(seconds, thee_hype_ehvent_enabled, True)
+            formatted_time_added = datetime.timedelta(seconds=seconds)
+            response = f"! {formatted_time_added} to thee clock!!"
+        await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Welcome {data.event.user_name} to Thee Chodeling's Nest{response}{response_thanks}")
     except Exception as e:
         formatted_time = fortime()
         logger.error(f"{formatted_time}: Error in 'on_stream_follow' -- {e}")
@@ -318,13 +372,16 @@ async def on_stream_follow(data: ChannelFollowEvent):
 
 async def on_stream_hype_begin(data: HypeTrainEvent):
     try:
+        global thee_hype_ehvent_enabled
+        thee_hype_ehvent_enabled = True
+        # ToDo: ADD OBS LOGIC HERE TO ENABLE THEE HYPE EH-VENT (NEW NAME FOR THEE Hype EhVent)
         channel_document = await get_channel_document(data)
         if channel_document is None:
             await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Error grabbing/creating channel document. Try again later")
             return
         channel_document.update(hype_train_current=True, hype_train_current_level=data.event.level)
         channel_document.save()
-        await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Choo Choooooooo!! Hype train started by {data.event.last_contribution.user_name}.")
+        await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Choo Choooooooo!! Hype train started by {data.event.last_contribution.user_name}{f', also triggering a Hype EhVent, doubling all twitch contributions to thee clock!!' if writing_to_clock else '!'}")
     except Exception as e:
         formatted_time = fortime()
         logger.error(f"{formatted_time}: Error in 'on_stream_hype_begin' -- {e}")
@@ -333,14 +390,23 @@ async def on_stream_hype_begin(data: HypeTrainEvent):
 
 async def on_stream_hype_end(data: HypeTrainEndEvent):
     try:
+        global thee_hype_ehvent_enabled
+        thee_hype_ehvent_enabled = False
+        # ToDo: ADD OBS LOGIC HERE TO DISABLE THEE HYPE EH-VENT (NEW NAME FOR THEE Hype EhVent)
         channel_document = await get_channel_document(data)
         if channel_document is None:
             await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Error grabbing/creating channel document. Try again later")
             return
+        if data.event.level > channel_document['hype_train_record_level']:
+            record_beat = True
+            new_hype_train_record_level = data.event.level
+        else:
+            record_beat = False
+            new_hype_train_record_level = channel_document['hype_train_record_level']
         formatted_time = fortime()
-        channel_document.update(hype_train_last=formatted_time, hype_train_current=False, hype_train_current_level=0, hype_train_record_level=data.event.level)
+        channel_document.update(hype_train_last=formatted_time, hype_train_current=False, hype_train_current_level=0, hype_train_last_level=data.event.level, hype_train_record_level=new_hype_train_record_level)
         channel_document.save()
-        await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Hype Train Completed @ {data.event.level}!! Much Love To All <3")
+        await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Hype Train Completed @ {data.event.level}!!{f' New local record reached at {new_hype_train_record_level}!!' if record_beat else ''}{f' Thee Hype EhVent is now over, all contributions to thee clock have returned to normal.' if writing_to_clock else ''} Much Love To All <3")
     except Exception as e:
         formatted_time = fortime()
         logger.error(f"{formatted_time}: Error in 'on_stream_hype_end' -- {e}")
@@ -360,7 +426,7 @@ async def on_stream_hype_progress(data: HypeTrainEvent):
             new_hype_train_current_level = channel_document['hype_train_current_level']
         if new_hype_train_current_level > channel_document['hype_train_record_level']:
             new_hype_train_record_level = data.event.level
-            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"New Hype Train Record Level!!!!! Record Now @ {data.event.level}")
+            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"New Hype Train local Record Level!!!!! Record Now @ {data.event.level}")
         else:
             new_hype_train_record_level = channel_document['hype_train_record_level']
         channel_document.update(hype_train_current_level=new_hype_train_current_level, hype_train_record_level=new_hype_train_record_level)
@@ -397,7 +463,24 @@ async def on_stream_poll_end(data: ChannelPollEndEvent):
 
 async def on_stream_point_redemption(data: ChannelPointsCustomRewardRedemptionAddEvent):
     try:
-        await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.user_name} used {data.event.reward.cost} Theebucks to redeem {data.event.reward.title}")
+        # print(f"ChannelPointsRedemption\nTitle: {data.event.reward.title}\nCost: {data.event.reward.cost}\nPrompt: {data.event.reward.prompt}")
+        if data.event.reward.title == "Add 10 Mins" and writing_to_clock:
+            seconds = 600
+            seconds_formatted = f"{str(datetime.timedelta(seconds=seconds)).title() if not thee_hype_ehvent_enabled else str(datetime.timedelta(seconds=seconds*2)).title()}"
+            write_clock(seconds, thee_hype_ehvent_enabled, True)
+            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.user_name} added {seconds_formatted} to thee timer with {data.event.reward.cost} {channel_point_name}")
+        elif data.event.reward.title == "Add 20 Mins" and writing_to_clock:
+            seconds = 1200
+            seconds_formatted = f"{str(datetime.timedelta(seconds=seconds)).title() if not thee_hype_ehvent_enabled else str(datetime.timedelta(seconds=seconds*2))}"
+            write_clock(seconds, thee_hype_ehvent_enabled, True)
+            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.user_name} added {seconds_formatted} to thee timer with {data.event.reward.cost} {channel_point_name}")
+        elif data.event.reward.title == "Add 30 Mins" and writing_to_clock:
+            seconds = 1800
+            seconds_formatted = f"{str(datetime.timedelta(seconds=seconds)).title() if not thee_hype_ehvent_enabled else str(datetime.timedelta(seconds=seconds*2))}"
+            write_clock(seconds, thee_hype_ehvent_enabled, True)
+            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.user_name} added {seconds_formatted} to thee timer with {data.event.reward.cost} {channel_point_name}")
+        else:
+            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.user_name} used {data.event.reward.cost} {channel_point_name} to redeem {data.event.reward.title}")
     except Exception as e:
         formatted_time = fortime()
         logger.error(f"{formatted_time}: Error in 'on_stream_point_redemption' -- {e}")
@@ -441,20 +524,21 @@ async def on_stream_prediction_lock(data: ChannelPredictionEvent):
 
 async def on_stream_subbie(data: ChannelSubscribeEvent):
     try:
-        sub_tier = await get_subbie_tier(data)
-        chatter_document = await get_chatter_document(data)
-        if chatter_document is not None:
-            points_to_add = round(standard_seconds * sub_tier)
-            await twitch_points_transfer(chatter_document, points_to_add)
-        if writing_to_clock:
-            seconds = round(standard_seconds * sub_tier)  # ToDo: FIGURE OUT THIS MATHS SHIT....
-            # seconds = int(standard_seconds * sub_tier)  # ToDo: Think This Maths Shit is Figured??? Now to test.... note using round, think it's more fair
-            write_clock(seconds, power_hour_enabled, True)
-            formatted_time_added = datetime.timedelta(seconds=seconds)
-            response = f', adding {formatted_time_added} to thee clock!!'
-        else:
-            response = '.'
-        await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.user_name} subscribed to Thee Nest{response} Much Love, Thank You :)")
+        if not data.event.is_gift:
+            sub_tier = await get_subbie_tier(data)
+            chatter_document = await get_chatter_document(data)
+            if chatter_document is not None:
+                points_to_add = round(standard_seconds * sub_tier)
+                await twitch_points_transfer(chatter_document, points_to_add)
+            if writing_to_clock:
+                seconds = round(standard_seconds * sub_tier)  # ToDo: FIGURE OUT THIS MATHS SHIT....
+                # seconds = int(standard_seconds * sub_tier)  # ToDo: Think This Maths Shit is Figured??? Now to test.... note using round, think it's more fair
+                write_clock(seconds, thee_hype_ehvent_enabled, True)
+                formatted_time_added = datetime.timedelta(seconds=seconds)
+                response = f', adding {formatted_time_added} to thee clock!!'
+            else:
+                response = '.'
+            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.user_name} subscribed to Thee Nest{response} Much Love, Thank You :)")
     except Exception as e:
         formatted_time = fortime()
         logger.error(f"{formatted_time}: Error in 'on_stream_subbie' -- {e}")
@@ -476,8 +560,8 @@ async def on_stream_subbie_gift(data: ChannelSubscriptionGiftEvent):
                 points_to_add = round(standard_points * sub_tier)
                 await twitch_points_transfer(chatter_document, points_to_add)
         if writing_to_clock:
-            seconds = round(standard_seconds * sub_tier)
-            write_clock(seconds, power_hour_enabled, True)
+            seconds = round((standard_seconds * sub_tier) * data.event.total)  # todo fix this, add * quantity of subbies
+            write_clock(seconds, thee_hype_ehvent_enabled, True)
             formatted_time_added = datetime.timedelta(seconds=seconds)
             response = f" Added {formatted_time_added} to thee clock!!"
         await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{user} gifted out {data.event.total} {'subbie' if data.event.total == 1 else 'subbies'} to Thee Chodelings. {user_response}  Thank You :) Much Love <3{response}")
@@ -492,7 +576,7 @@ async def on_stream_raid_in(data: ChannelRaidEvent):
         response = "!!!"
         if writing_to_clock:
             seconds = round(raid_seconds * data.event.viewers)
-            write_clock(seconds, power_hour_enabled, True)
+            write_clock(seconds, thee_hype_ehvent_enabled, True)
             formatted_time_added = datetime.timedelta(seconds=seconds)
             response = f" adding {formatted_time_added} to thee clock!!!"
         await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"{data.event.from_broadcaster_user_name} raid with {data.event.viewers} incoming{response} Go show them some love back y'all")
@@ -557,7 +641,7 @@ async def on_stream_end(data: StreamOfflineEvent):
 
 
 async def run():
-    global power_hour_enabled, writing_to_clock
+    global thee_hype_ehvent_enabled, writing_to_clock
     twitch_helper = UserAuthenticationStorageHelper(bot, target_scopes)
     await twitch_helper.bind()
 
@@ -572,6 +656,9 @@ async def run():
     await event_sub.listen_channel_chat_notification(user.id, user.id, on_stream_chat_notification)
     await event_sub.listen_channel_cheer(user.id, on_stream_cheer)
     await event_sub.listen_channel_follow_v2(user.id, user.id, on_stream_follow)
+    # await event_sub.listen_goal_begin(user.id, on_stream_goal_begin)  # Don't think I'll use this or thee next two lines, I don't use goals
+    # await event_sub.listen_goal_progress(user.id, on_stream_goal_progress)
+    # await event_sub.listen_goal_end(user.id, on_stream_goal_end)
     await event_sub.listen_hype_train_begin(user.id, on_stream_hype_begin)
     await event_sub.listen_hype_train_end(user.id, on_stream_hype_end)
     await event_sub.listen_hype_train_progress(user.id, on_stream_hype_progress)
@@ -589,8 +676,7 @@ async def run():
     await event_sub.listen_stream_online(user.id, on_stream_start)
     await event_sub.listen_stream_offline(user.id, on_stream_end)
 
-    # Bot's Loop
-    while True:
+    while True:  # Bot's Loop
         async def shutdown():
             try:
                 print("Shutting down twitch bot processes. Stand By")
@@ -609,11 +695,16 @@ async def run():
                 pass
 
         try:
-            options = ["Enter 1 to Enable/Disable Writing to Clock",
-                       "Enter 2 Enable/Disable Thee Half Eh Hour",
-                       "Enter 3 to get current time left",
-                       "Enter 4 to add/subtract time",
+            options = ["Enter 1 to configure timer",
+                       "Enter 2 to get current time left",
+                       "Enter 3 to add/subtract time",
                        "Enter 0 to Halt Bot"]
+            one_options = ["Enter 1 to Enable/Disable Writing to Clock",
+                           "Enter 2 to Enable/Disable Thee Hype EhVent",
+                           "Enter 3 to Change Current time left",
+                           "Enter 4 to Change Max Time",
+                           "Enter 5 to Change Total Time",
+                           "Enter 0 To Go Up"]
             user_input = input(f"\n".join(options) + "\n")
             if user_input.isdigit():
                 user_input = int(user_input)
@@ -621,27 +712,37 @@ async def run():
                     await shutdown()
                     break
                 elif user_input == 1:
-                    if writing_to_clock:
-                        writing_to_clock = False
-                        print(f"Writing to CLock is now DISABLED")
-                    elif not writing_to_clock:
-                        writing_to_clock = True
-                        print(f"Writing to Clock is now ENABLED")
-                    else:
-                        print(f"ERROR SETTING 'writing_to_clock' it is currently '{writing_to_clock}'")
+                    while True:
+                        user_input = input(f"\n".join(one_options) + "\n")
+                        if not user_input.isdigit():
+                            print(f"Must enter just a number")
+                        else:
+                            user_input = int(user_input)
+                            if user_input == 0:
+                                print(f"Returning to Bot's Main Loop")
+                                break
+                            elif user_input == 1:
+                                if writing_to_clock:
+                                    writing_to_clock = False
+                                else:
+                                    writing_to_clock = True
+                                print(f"Writing to clock is now {'EN' if writing_to_clock else 'DIS'}ABLED")
+                            elif user_input == 2:
+                                if thee_hype_ehvent_enabled:
+                                    thee_hype_ehvent_enabled = False
+                                else:
+                                    thee_hype_ehvent_enabled = True
+                                print(f"Thee Hype EhVent is now {'EN' if thee_hype_ehvent_enabled else 'DIS'}ABLED")
+                            elif user_input == 3:
+                                reset_current_time()
+                            elif user_input == 4:
+                                reset_max_time()
+                            elif user_input == 5:
+                                reset_total_time()
                 elif user_input == 2:
-                    if power_hour_enabled:
-                        power_hour_enabled = False
-                        print(f"Thee Half Eh Hour is DISABLED")
-                    elif not power_hour_enabled:
-                        power_hour_enabled = True
-                        print(f"Thee Half Eh Hour is ENABLED")
-                    else:
-                        print(f"ERROR SETTING 'power_hour_enabled' it is currently '{power_hour_enabled}'")
-                elif user_input == 3:
                     print(read_clock())
-                elif user_input == 4:
-                    number, add = get_user_input_clock()
+                elif user_input == 3:
+                    number, add = loop_get_user_input_clock()
                     if number.isdigit():
                         write_clock(int(number), False, add)
                     else:
@@ -675,10 +776,10 @@ def fortime():
         return None
 
 
-def get_user_input_clock():
+def loop_get_user_input_clock():
     try:
         while True:
-            number = input(f"Enter +/-number to add/subtract")
+            number = input(f"Enter +/-number to add/subtract\n")
             if number.startswith("+"):
                 add = True
                 break
@@ -697,16 +798,16 @@ def get_user_input_clock():
 
 def setup_logger(name, log_file, level=logging.INFO):
     try:
-        handler = logging.FileHandler(f"{logs_directory}{log_file}")
+        handler = logging.FileHandler(f"{logs_directory}{log_file}", mode="w", encoding="utf-8")
         console_handler = logging.StreamHandler()
-        logger = logging.getLogger(name)
-        logger.setLevel(level)
-        logger.addHandler(handler)
-        logger.addHandler(console_handler)
-        return logger
+        local_logger = logging.getLogger(name)
+        local_logger.setLevel(level)
+        local_logger.addHandler(handler)
+        local_logger.addHandler(console_handler)
+        return local_logger
     except Exception as e:
         formatted_time = fortime()
-        print(f"{formatted_time}: ERROR in setup_logger -- {name}/{log_file}/{level} -- {e}")
+        print(f"{formatted_time}: ERROR in setup_logger - {name}/{log_file}/{level} -- {e}")
         return None
 
 
@@ -767,15 +868,18 @@ async def get_channel_document(data):
 
 async def get_chatter_document(data):
     try:
-        chatter_id = data.event.chatter_user_id
+        if type(data) in (ChannelSubscribeEvent, ChannelSubscriptionGiftEvent):
+            chatter_id = data.event.user_id
+        else:
+            chatter_id = data.event.chatter_user_id
         chatter_name = data.event.chatter_user_name
         chatter_login = data.event.chatter_user_login
-        users_collection = twitch_database.twitch.get_collection('users')
         try:
             chatter_document = Users.objects.get(user_id=chatter_id)
         except Exception as f:
             if FileNotFoundError:
                 try:
+                    users_collection = twitch_database.twitch.get_collection('users')
                     formatted_time = fortime()
                     new_chatter_document = Users(user_id=chatter_id, user_name=chatter_name, user_login=chatter_login,
                                                  first_chat_date=formatted_time)
@@ -805,7 +909,7 @@ async def get_discord_document(chatter_document):
             chatter_document_discord = EconomyData.objects.get(author_id=chatter_document['user_discord_id'])
             return chatter_document_discord
         else:
-            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"You do not have a document in a server TheeChodebot is in as well.")
+            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"You do not have a document in a discord server TheeChodebot is in as well.")
             return None
     except Exception as e:
         formatted_time = fortime()
@@ -846,10 +950,10 @@ async def document_points_transfer(direction, transfer_value, chatter_document, 
             new_twitch_points = chatter_document['user_points'] + transfer_value
             chatter_document.update(user_points=new_twitch_points)
             chatter_document.save()
-            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Transferred {transfer_value} to your twitch profile.")
+            # await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Transferred {transfer_value} to your twitch profile.")
         elif direction == "discord":
             if transfer_value > chatter_document['user_points']:
-                await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"You do not have enough discord points to transfer. You have {chatter_document['user_points']} points")
+                await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"You do not have enough twitch points to transfer. You have {chatter_document['user_points']} points")
                 return
             new_discord_points = chatter_document_discord['points_value'] + transfer_value
             chatter_document_discord.update(points_value=new_discord_points)
@@ -857,10 +961,11 @@ async def document_points_transfer(direction, transfer_value, chatter_document, 
             new_twitch_points = chatter_document['user_points'] - transfer_value
             chatter_document.update(user_points=new_twitch_points)
             chatter_document.save()
-            await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Transferred {transfer_value} to your discord profile.")
+            # await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Transferred {transfer_value} to your discord profile.")
         else:
             await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Backend Mess up.... {direction} is thee direction")
             return
+        await bot.send_chat_message(id_broadcaster_account, id_broadcaster_account, f"Transferred {transfer_value} to your {direction} profile.")
     except Exception as e:
         formatted_time = fortime()
         logger.error(f"{formatted_time}: Error in points_transfer -- {chatter_document['user_id']}/{chatter_document['user_name']}/{chatter_document['user_login']}/{chatter_document['user_discord_id']} -- {chatter_document_discord['author_id']}/{chatter_document_discord['author_name']}/{chatter_document_discord['guild_name']}/{chatter_document_discord['twitch_id']} -- {e}")
@@ -872,7 +977,7 @@ async def twitch_points_transfer(chatter_document, value: int, add: bool = True)
         if chatter_document is not None:
             # formatted_time = fortime()
             last_chatted = datetime.datetime.now()
-            print(last_chatted, type(last_chatted))
+            # print(last_chatted, type(last_chatted))
             if add:
                 new_user_points = chatter_document['user_points'] + value
             else:
@@ -888,9 +993,10 @@ async def twitch_points_transfer(chatter_document, value: int, add: bool = True)
 logger = setup_logger('logger', 'log.log')
 chat_logger = setup_logger('chat_logger', 'chat_log.log')
 gamble_logger = setup_logger('gamble_logger', 'gamble_log.log')
+special_logger = setup_logger('special_logger', 'special_log.log', logging.WARN)
 
-if None in (logger, chat_logger, gamble_logger):
-    print(f"One of thee loggers isn't setup right -- {logger}/{chat_logger}/{gamble_logger} -- Quitting program")
+if None in (logger, chat_logger, gamble_logger, special_logger):
+    print(f"One of thee loggers isn't setup right -- {logger}/{chat_logger}/{gamble_logger}/{special_logger} -- Quitting program")
     quit()
 
 # Main Loop
@@ -941,7 +1047,7 @@ while True:
                 #     continue
             elif user_input == 3:
                 while True:
-                    number, add = get_user_input_clock()
+                    number, add = loop_get_user_input_clock()
                     if number.isdigit():
                         write_clock(int(number), False, add)
                         break

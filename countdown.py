@@ -1,6 +1,7 @@
 import os
 import time
-from functions import clock, clock_reset_time, read_clock, write_clock, get_sec
+import datetime
+from functions import clock, clock_max, clock_total, clock_reset_time, get_sec, read_clock, write_clock, reset_max_time, reset_total_time, reset_current_time  #, write_max_clock, write_total_clock
 
 
 def countdown(total_seconds):
@@ -25,60 +26,95 @@ try:
         with open(clock, "w") as file:
             file.write(clock_reset_time)
             print("File 'clock.txt' created first time run")
+    if not os.path.exists(clock_total):
+        with open(clock_total, "w") as file:
+            file.write(clock_reset_time)
+            print("File 'clock_total' created first time run")
     elif os.path.exists(clock):
         print("File already exists")
 except Exception as e:
     print(f"Something wrong, cannot locate clock.txt file. path looking in is: {clock} -- {e}")
     exit()
 
-while True:
-    try:
-        user_input = input(f"Enter 1 to enter countdown\nEnter 0 to quit countdown\n")
-        if user_input.isdigit():
-            user_input = int(user_input)
-            if user_input == 0:
-                print(f"Exiting countdown")
-                break
-            elif user_input == 1:
-                while True:
-                    while True:
-                        try:
-                            user_seconds = input(f"+/-seconds to start thee timer\n")
-                            if user_seconds.startswith("+"):
-                                add = True
-                                break
-                            elif user_seconds.startswith("-"):
-                                add = False
-                                break
+if __name__ == "__main__":
+    while True:
+        try:
+            user_input = input(f"Enter 1 to enter countdown\nEnter 2 to configure countdown\nEnter 0 to quit countdown\n")
+            if user_input.isdigit():
+                user_input = int(user_input)
+                if user_input == 0:
+                    print(f"Exiting countdown")
+                    break
+                elif user_input == 1:
+                    if not os.path.exists(clock_max):
+                        while True:
+                            max_seconds = input(f"Max Time File Not Found! Enter Max Time in SECONDS\n")
+                            if not max_seconds.isdigit():
+                                print(f"You didn't enter a number")
                             else:
-                                print(f"input not valid, yours was: -- {user_seconds} --")
+                                max_seconds = int(max_seconds)
+                                max_seconds_formatted = str(datetime.timedelta(seconds=max_seconds))
+                                with open(clock_max, "w") as file:
+                                    file.write(max_seconds_formatted.title())
+                                print(f"Max time set successfully as {max_seconds_formatted.title()}")
+                                break
+                    while True:
+                        while True:
+                            try:
+                                user_seconds = input(f"+/-seconds to start thee timer\n")
+                                if user_seconds.startswith("+"):
+                                    add = True
+                                    break
+                                elif user_seconds.startswith("-"):
+                                    add = False
+                                    break
+                                else:
+                                    print(f"input not valid, yours was: -- {user_seconds} --")
+                            except KeyboardInterrupt:
+                                print(f"Exiting countdown")
+                                add = None
+                                user_seconds = None
+                                break
+                        if None in (add, user_seconds):
+                            break
+                        try:
+                            user_seconds = user_seconds.lstrip("-").lstrip("+")
+                            if user_seconds.isdigit():
+                                user_seconds = int(user_seconds)
+                                write_clock(user_seconds, add=add)
+                                input("Hit ENTER To Start Thee Timer!\n")
+                                timer = read_clock()
+                                total_seconds = get_sec(timer)
+                                print(timer, total_seconds)  # DEBUGGING -- ++ 2 lines above -- otherwise countdown(get_sec(read_clock()))
+                                countdown(total_seconds)
+                                # countdown(get_sec(read_clock()))  # For Run
+                            else:
+                                print(f"{user_seconds} isn't valid, try just numbers.")
                         except KeyboardInterrupt:
                             print(f"Exiting countdown")
-                            add = None
-                            user_seconds = None
                             break
-                    if None in (add, user_seconds):
-                        break
-                    try:
-                        user_seconds = user_seconds.lstrip("-").lstrip("+")
-                        if user_seconds.isdigit():
-                            user_seconds = int(user_seconds)
-                            write_clock(user_seconds, add=add)
-                            input("Hit ENTER To Start Thee Timer!\n")
-                            timer = read_clock()
-                            total_seconds = get_sec(timer)
-                            print(timer, total_seconds)  # DEBUGGING -- ++ 2 lines above -- otherwise countdown(get_sec(read_clock()))
-                            countdown(total_seconds)
-                            # countdown(get_sec(read_clock()))  # For Run
+                elif user_input == 2:
+                    while True:
+                        user_input = input(f"Enter 1 to change current time\nEnter 2 to change max time\nEnter 3 to change total time\nEnter 0 to go back\n")
+                        if user_input.isdigit():
+                            user_input = int(user_input)
+                            if user_input == 0:
+                                print(f"Going back")
+                                break
+                            elif user_input == 1:
+                                reset_current_time()
+                            elif user_input == 2:
+                                reset_max_time()
+                            elif user_input == 3:
+                                reset_total_time()
+                            else:
+                                print(f"Invalid Input -- You put {user_input}")
                         else:
-                            print(f"{user_seconds} isn't valid, try just numbers.")
-                    except KeyboardInterrupt:
-                        print(f"Exiting countdown")
-                        break
+                            print(f"Invalid Input -- You put {user_input}")
+                else:
+                    print(f"Invalid Input -- You put {user_input}")
             else:
-                print(f"Invalid Input -- You put {user_input}")
-        else:
-            print(f"Invalid Input -- You put {user_input} -- which is a {type(user_input)}")
-    except KeyboardInterrupt:
-        print("Exiting countdown")
-        break
+                print(f"Invalid Input -- You put {user_input} -- which is a {type(user_input)}")
+        except KeyboardInterrupt:
+            print("Exiting countdown")
+            break
