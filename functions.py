@@ -142,6 +142,33 @@ def reset_total_time():
                 print(f"You must enter just a number -- you put -- {user_input} which is a {type(user_input)}")
 
 
+def reset_level_const(level_const):
+    while True:
+        user_input = input(f"Enter 1 to Change Level Constant\nEnter 2 to Reset Level Constant\nEnter 0 to go back\n")
+        if not user_input.isdigit():
+            print(f"Must enter just a number")
+        else:
+            user_input = int(user_input)
+            if user_input == 0:
+                print(f"Going back")
+                return level_const
+            elif user_input == 1:
+                while True:
+                    new_level_const = input(f"Input new Level Constant\n")
+                    if not new_level_const.isdigit():
+                        print(f"Must enter just a number")
+                    else:
+                        level_const = int(new_level_const)
+                        print(f"New Level Const set @ {new_level_const}")
+                        return level_const
+            elif user_input == 2:
+                level_const = 100
+                print(f"Level Const reset @ {level_const}")
+                return level_const
+            else:
+                print(f"You must enter just a number, you put {user_input} which is a {type(user_input)}")
+
+
 def write_clock(seconds: int, hype_ehvent: bool = False, add: bool = False):
     try:
         current_seconds = int(get_sec(read_clock()))
