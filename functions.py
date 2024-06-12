@@ -216,11 +216,3 @@ def write_clock(seconds: int, hype_ehvent: bool = False, add: bool = False):
         else:
             print(f"Something else went wrong -- {e}")
             return
-
-
-# def write_max_clock(seconds: int):
-#     pass
-# 
-# 
-# def write_total_clock(seconds: int, add: bool = False):
-#     pass

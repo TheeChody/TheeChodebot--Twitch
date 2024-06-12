@@ -21,22 +21,21 @@ def countdown(total_seconds):
             file.write(clock_reset_time)
 
 
-try:
-    if not os.path.exists(clock):
-        with open(clock, "w") as file:
-            file.write(clock_reset_time)
-            print("File 'clock.txt' created first time run")
-    if not os.path.exists(clock_total):
-        with open(clock_total, "w") as file:
-            file.write(clock_reset_time)
-            print("File 'clock_total' created first time run")
-    elif os.path.exists(clock):
-        print("File already exists")
-except Exception as e:
-    print(f"Something wrong, cannot locate clock.txt file. path looking in is: {clock} -- {e}")
-    exit()
-
 if __name__ == "__main__":
+    try:
+        if not os.path.exists(clock):
+            with open(clock, "w") as file:
+                file.write(clock_reset_time)
+                print("File 'clock.txt' created first time run")
+        if not os.path.exists(clock_total):
+            with open(clock_total, "w") as file:
+                file.write(clock_reset_time)
+                print("File 'clock_total' created first time run")
+        elif os.path.exists(clock):
+            print("File already exists")
+    except Exception as e:
+        print(f"Something wrong, cannot locate clock.txt file. path looking in is: {clock} -- {e}")
+        exit()
     while True:
         try:
             user_input = input(f"Enter 1 to enter countdown\nEnter 2 to configure countdown\nEnter 0 to quit countdown\n")
