@@ -15,7 +15,7 @@ class Channels(Document):
     channel_followers_list = ListField(default=[])
     hype_train_last = DynamicField(default=None)
     hype_train_current = BooleanField(default=False)
-    hype_train_current_level = IntField(default=0)
+    hype_train_current_level = IntField(default=1)
     hype_train_last_level = IntField(default=0)
     hype_train_record_level = IntField(default=0)
     cmd_tag_last_it = ListField(default=[None, None, None])  # ID, NAME, TIME

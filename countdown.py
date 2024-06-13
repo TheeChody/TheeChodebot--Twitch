@@ -1,17 +1,23 @@
 import os
 import time
 import datetime
-from functions import clock, clock_max, clock_total, clock_reset_time, get_sec, read_clock, write_clock, reset_max_time, reset_total_time, reset_current_time  #, write_max_clock, write_total_clock
+from functions import clock, clock_max, clock_total, clock_reset_time, get_sec, read_clock, write_clock, reset_max_time, reset_total_time, reset_current_time, loop_get_user_input_clock, reset_sofar_time, clock_sofar  #, write_max_clock, write_total_clock
+from timeit import default_timer as how_long
+
+pause_time = 1
 
 
 def countdown(total_seconds):
-    time.sleep(1)
+    time.sleep(pause_time)
     while total_seconds >= 1:
         try:
-            write_clock(1)
+            start = how_long()
+            write_clock(1, countdown=True)
             timer = read_clock()
             total_seconds = get_sec(timer)
-            print(timer), time.sleep(1)
+            end = how_long()
+            adjust = end - start
+            print(timer), time.sleep(pause_time - adjust)
         except KeyboardInterrupt:
             break
     print(read_clock(), f"TESTING STUFFS")
@@ -27,15 +33,30 @@ if __name__ == "__main__":
             with open(clock, "w") as file:
                 file.write(clock_reset_time)
                 print("File 'clock.txt' created first time run")
+        elif os.path.exists(clock):
+            print("File 'clock.txt' already exists")
+        if not os.path.exists(clock_max):
+            with open(clock_max, "w") as file:
+                file.write(clock_reset_time)
+                print("File 'clock_max.txt' created first time run")
+        elif os.path.exists(clock_max):
+            print("File 'clock_max.txt' already exists")
         if not os.path.exists(clock_total):
             with open(clock_total, "w") as file:
                 file.write(clock_reset_time)
-                print("File 'clock_total' created first time run")
-        elif os.path.exists(clock):
-            print("File already exists")
+                print("File 'clock_total.txt' created first time run")
+        elif os.path.exists(clock_total):
+            print("File 'clock_total.txt' already exists")
+        if not os.path.exists(clock_sofar):
+            with open(clock_sofar, "w") as file:
+                file.write(clock_reset_time)
+                print("File 'clock_sofar.txt' created first time run")
+        elif os.path.exists(clock_sofar):
+            print("File 'clock_sofar.txt' already exists")
     except Exception as e:
         print(f"Something wrong, cannot locate clock.txt file. path looking in is: {clock} -- {e}")
         exit()
+
     while True:
         try:
             user_input = input(f"Enter 1 to enter countdown\nEnter 2 to configure countdown\nEnter 0 to quit countdown\n")
@@ -58,29 +79,11 @@ if __name__ == "__main__":
                                 print(f"Max time set successfully as {max_seconds_formatted.title()}")
                                 break
                     while True:
-                        while True:
-                            try:
-                                user_seconds = input(f"+/-seconds to start thee timer\n")
-                                if user_seconds.startswith("+"):
-                                    add = True
-                                    break
-                                elif user_seconds.startswith("-"):
-                                    add = False
-                                    break
-                                else:
-                                    print(f"input not valid, yours was: -- {user_seconds} --")
-                            except KeyboardInterrupt:
-                                print(f"Exiting countdown")
-                                add = None
-                                user_seconds = None
-                                break
-                        if None in (add, user_seconds):
-                            break
+                        user_seconds, add = loop_get_user_input_clock()
                         try:
-                            user_seconds = user_seconds.lstrip("-").lstrip("+")
                             if user_seconds.isdigit():
                                 user_seconds = int(user_seconds)
-                                write_clock(user_seconds, add=add)
+                                write_clock(user_seconds, add)
                                 input("Hit ENTER To Start Thee Timer!\n")
                                 timer = read_clock()
                                 total_seconds = get_sec(timer)
@@ -92,9 +95,10 @@ if __name__ == "__main__":
                         except KeyboardInterrupt:
                             print(f"Exiting countdown")
                             break
+                    time.sleep(1)
                 elif user_input == 2:
                     while True:
-                        user_input = input(f"Enter 1 to change current time\nEnter 2 to change max time\nEnter 3 to change total time\nEnter 0 to go back\n")
+                        user_input = input(f"Enter 1 to change current time\nEnter 2 to change max time\nEnter 3 to change total time\nEnter 4 to change sofar time\nEnter 5 to change speed\nEnter 0 to go back\n")
                         if user_input.isdigit():
                             user_input = int(user_input)
                             if user_input == 0:
@@ -106,6 +110,17 @@ if __name__ == "__main__":
                                 reset_max_time()
                             elif user_input == 3:
                                 reset_total_time()
+                            elif user_input == 4:
+                                reset_sofar_time()
+                            elif user_input == 5:
+                                while True:
+                                    new_pause_time = input("Enter new speed in SECONDS\n")
+                                    if new_pause_time.isdigit():
+                                        pause_time = int(new_pause_time)
+                                        print(f"New speed set to {pause_time}")
+                                        break
+                                    else:
+                                        print(f"Invalid Input -- You put {new_pause_time} -- which is a {type(new_pause_time)}")
                             else:
                                 print(f"Invalid Input -- You put {user_input}")
                         else:
