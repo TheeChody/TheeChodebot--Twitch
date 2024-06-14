@@ -18,6 +18,7 @@ class Channels(Document):
     hype_train_current_level = IntField(default=1)
     hype_train_last_level = IntField(default=0)
     hype_train_record_level = IntField(default=0)
+    writing_to_clock = BooleanField(default=False)
     cmd_tag_last_it = ListField(default=[None, None, None])  # ID, NAME, TIME
     ignore_list = ListField(default=["431026547", "52268235", "253326823", "100135110", "431199284"])
     lurk_list = ListField(default=[])

@@ -19,12 +19,49 @@ clock = f"{data_directory}clock.txt"
 clock_sofar = f"{data_directory}clock_sofar.txt"
 clock_total = f"{data_directory}clock_total_time.txt"
 clock_max = f"{data_directory}clock_max_time.txt"
+clock_pause = f"{data_directory}clock_pause.txt"
+clock_pause_reset = "1"
 clock_reset_time = "0:00:00"
 Path(data_directory).mkdir(parents=True, exist_ok=True)
 Path(logs_directory).mkdir(parents=True, exist_ok=True)
 long_dashes = "-------------------------------------------------"
 
 # print(f"App -- {application_path} --- path__file__ -- {countdown_path}")  # ToDo: Figure out if I want to use Path(__file__) as thee determining app_path...
+
+
+def refresh_pause():
+    with open(clock_pause, "r") as file:
+        return file.read()
+
+
+def reset_pause():
+    while True:
+        user_input = input(f"Enter 1 to change current pause\nEnter 2 to reset current pause\nEnter 0 to go back\n")
+        if not user_input.isdigit():
+            print(f"You must enter just a number")
+        else:
+            user_input = int(user_input)
+            if user_input == 0:
+                print(f"Going back")
+                break
+            elif user_input == 1:
+                while True:
+                    new_pause_time = input("Enter new speed in SECONDS\n")
+                    if new_pause_time.isdigit():
+                        with open(clock_pause, "w") as file:
+                            file.write(new_pause_time)
+                        print(f"New pause time set @ {new_pause_time}")
+                        break
+                    else:
+                        print(f"Invalid Input -- You put {new_pause_time} -- which is a {type(new_pause_time)}")
+            elif user_input == 2:
+                with open(clock_pause, "w") as file:
+                    file.write(clock_pause_reset)
+                    print(f"Current Clock Reset to {clock_pause_reset}")
+            else:
+                print(f"You must enter a number, you put {user_input} which is a {type(user_input)}")
+
+    pass
 
 
 def loop_get_user_input_clock():
@@ -103,11 +140,10 @@ def reset_current_time():
                         print(f"Must enter just a number")
                     else:
                         new_time = int(new_time)
-                        new_time_formatted = str(
-                            datetime.timedelta(seconds=new_time))  # .title()  ToDo Try that <<<<<<<<<<<<<<<
+                        new_time_formatted = str(datetime.timedelta(seconds=new_time)).title()
                         with open(clock, "w") as file:
-                            file.write(new_time_formatted.title())
-                        print(f"New current time set @ {new_time_formatted.title()}")
+                            file.write(new_time_formatted)
+                        print(f"New current time set @ {new_time_formatted}")
                         break
             elif user_input == 2:
                 with open(clock, "w") as file:
@@ -134,10 +170,10 @@ def reset_max_time():
                         print(f"Must enter just a number")
                     else:
                         new_max_seconds = int(new_max_seconds)
-                        new_max_formatted = str(datetime.timedelta(seconds=new_max_seconds))
+                        new_max_formatted = str(datetime.timedelta(seconds=new_max_seconds)).title()
                         with open(clock_max, "w") as file:
-                            file.write(new_max_formatted.title())
-                        print(f"New max time set @ {new_max_formatted.title()}")
+                            file.write(new_max_formatted)
+                        print(f"New max time set @ {new_max_formatted}")
                         break
             elif user_input == 2:
                 with open(clock_max, "w") as file:
@@ -235,8 +271,6 @@ def reset_level_const(level_const):
 def write_sofar(second):
     with open(clock_sofar, "r") as read:
         current_sofar = read.read()
-        if current_sofar == "":
-            current_sofar = clock_reset_time
     with open(clock_sofar, "w") as file:
         file.write(str(datetime.timedelta(seconds=get_sec(current_sofar) + second)).title())
 
