@@ -4,21 +4,17 @@ import datetime
 from functions import clock, clock_max, clock_pause, clock_reset_pause, clock_total, clock_reset_time, read_clock, \
     write_clock, reset_max_time, reset_total_time, reset_current_time, loop_get_user_input_clock, reset_sofar_time, clock_sofar, \
     refresh_pause, reset_pause, WebsocketsManager
-from timeit import default_timer as how_long
+from timeit import default_timer as timer
 
 
 def countdown(total_seconds: float):
-    pause_time = int(refresh_pause())
-    time.sleep(pause_time)
     while total_seconds >= 1:
         try:
-            start = how_long()
+            start = timer()
             write_clock(1, obs=obs, countdown=True)
-            # timer = read_clock()
-            # total_seconds = get_sec(timer)
             total_seconds = float(read_clock())
             pause_time = int(refresh_pause())
-            end = how_long()
+            end = timer()
             adjust = end - start
             print(str(datetime.timedelta(seconds=round(total_seconds))).title(), total_seconds, pause_time - adjust), time.sleep(pause_time - adjust)
         except KeyboardInterrupt:
@@ -35,40 +31,33 @@ if __name__ == "__main__":
         obs = WebsocketsManager()
         obs.connect()
         print(f"OBS Connection Established")
+    except Exception as e:
+        print(f"Error establishing OBS connection -- {e}")
+        exit()
+    try:
         if not os.path.exists(clock):
             with open(clock, "w") as file:
                 file.write(clock_reset_time)
                 print("File 'clock.txt' created first time run")
-        elif os.path.exists(clock):
-            print("File 'clock.txt' already exists")
         if not os.path.exists(clock_max):
             with open(clock_max, "w") as file:
                 file.write(clock_reset_time)
                 print("File 'clock_max.txt' created first time run")
-        elif os.path.exists(clock_max):
-            print("File 'clock_max.txt' already exists")
         if not os.path.exists(clock_total):
             with open(clock_total, "w") as file:
                 file.write(clock_reset_time)
                 print("File 'clock_total.txt' created first time run")
-        elif os.path.exists(clock_total):
-            print("File 'clock_total.txt' already exists")
         if not os.path.exists(clock_sofar):
             with open(clock_sofar, "w") as file:
                 file.write(clock_reset_time)
                 print("File 'clock_sofar.txt' created first time run")
-        elif os.path.exists(clock_sofar):
-            print("File 'clock_sofar.txt' already exists")
         if not os.path.exists(clock_pause):
             with open(clock_pause, "w") as file:
                 file.write(clock_reset_pause)
                 print("File 'clock_pause.txt' created first time run")
-        elif os.path.exists(clock_pause):
-            print("File 'clock_pause'.txt already exists")
     except Exception as e:
-        print(f"Something wrong, cannot locate clock.txt file. path looking in is: {clock} -- {e}")
+        print(f"Error creating one of thee text files -- {e}")
         exit()
-
     while True:
         try:
             user_input = input(f"Enter 1 to enter countdown\nEnter 2 to configure countdown\nEnter 0 to quit countdown\n")
@@ -85,9 +74,7 @@ if __name__ == "__main__":
                                 print(f"You didn't enter a number")
                             else:
                                 max_seconds = float(max_seconds)
-                                # max_seconds_formatted = str(datetime.timedelta(seconds=max_seconds))
                                 with open(clock_max, "w") as file:
-                                    # file.write(max_seconds_formatted.title())
                                     file.write(str(max_seconds))
                                 print(f"Max time set successfully as {max_seconds}")
                                 break
@@ -96,14 +83,12 @@ if __name__ == "__main__":
                         try:
                             if user_seconds.isdigit():
                                 user_seconds = float(user_seconds)
-                                write_clock(user_seconds, add)
+                                write_clock(user_seconds, add, obs=obs)
                                 input("Hit ENTER To Start Thee Timer!\n")
-                                # timer = read_clock()
-                                # total_seconds = get_sec(timer)
                                 total_seconds = float(read_clock())
-                                print(str(datetime.timedelta(seconds=round(total_seconds))).title(), total_seconds)  # DEBUGGING -- ++ 2 lines above -- otherwise countdown(get_sec(read_clock()))
+                                print(str(datetime.timedelta(seconds=round(total_seconds))).title(), total_seconds)  # DEBUGGING -- ++ 2 lines above -- otherwise countdown(float(read_clock()))
                                 countdown(total_seconds)
-                                # countdown(get_sec(read_clock()))  # For Run
+                                # countdown(float(read_clock()))  # For Run
                             else:
                                 print(f"{user_seconds} isn't valid, try just numbers.")
                         except KeyboardInterrupt:

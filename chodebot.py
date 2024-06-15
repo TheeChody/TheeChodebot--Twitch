@@ -1029,7 +1029,7 @@ async def on_stream_hype_begin(data: HypeTrainEvent):
         channel_document.save()
         await bot.send_chat_message(id_streamer, id_streamer, f"Choo Choooooooo!! Hype train started by {data.event.last_contribution.user_name}{f', also triggering a Hype EhVent, doubling all twitch contributions to thee clock!!' if channel_document['writing_to_clock'] else '!'}{response}")
         special_logger.info(f"Thee Hype EhVent ENABLED")
-        obs.set_text("HypeEhVent", f"Hype EhVent Enabled -- 2X")
+        obs.set_text("HypeEhVent", f"Hype EhVent Enabled -- {standard_ehvent_mult}X")
         obs.set_source_visibility("NS-Marathon", "HypeEhVent", True)
     except Exception as e:
         formatted_time = fortime()
@@ -1091,10 +1091,10 @@ async def on_stream_hype_progress(data: HypeTrainEvent):
         channel_document.save()
         # special_logger.info(f"New Hype Train Level!! Currently @ {data.event.level}.{response}")
         if new_hype_train_current_level > 1:
-            mult = standard_seconds * ((new_hype_train_current_level - 1) / 10 + standard_ehvent_mult)
+            mult = (new_hype_train_current_level - 1) / 10 + standard_ehvent_mult
         else:
-            mult = standard_seconds * standard_ehvent_mult
-        obs.set_text("HypeEhVent", f"HypeEhVent Enabled -- {mult}X")
+            mult = standard_ehvent_mult
+        obs.set_text("HypeEhVent", f"HypeEhVent Enabled -- {mult:.1f}X")
     except Exception as e:
         formatted_time = fortime()
         logger.error(f"{formatted_time}: Error in 'on_stream_hype_progress' -- {e}")
@@ -1139,15 +1139,15 @@ async def on_stream_point_redemption(data: ChannelPointsCustomRewardRedemptionAd
         if data.event.reward.title == "Add 10 Mins" and channel_document['writing_to_clock']:
             seconds = 600
             seconds, time_not_added = write_clock(seconds, True, channel_document, obs)
-            await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.user_name} added {str(datetime.timedelta(seconds=seconds)).title()} to thee timer with {data.event.reward.cost} {channel_point_name}. {f'Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}")
+            await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.user_name} added {str(datetime.timedelta(seconds=round(seconds))).title()} to thee timer with {data.event.reward.cost} {channel_point_name}. {f'Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}")
         elif data.event.reward.title == "Add 20 Mins" and channel_document['writing_to_clock']:
             seconds = 1200
             seconds, time_not_added = write_clock(seconds, True, channel_document, obs)
-            await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.user_name} added {str(datetime.timedelta(seconds=seconds)).title()} to thee timer with {data.event.reward.cost} {channel_point_name}. {f'Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}")
+            await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.user_name} added {str(datetime.timedelta(seconds=round(seconds))).title()} to thee timer with {data.event.reward.cost} {channel_point_name}. {f'Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}")
         elif data.event.reward.title == "Add 30 Mins" and channel_document['writing_to_clock']:
             seconds = 1800
             seconds, time_not_added = write_clock(seconds, True, channel_document, obs)
-            await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.user_name} added {str(datetime.timedelta(seconds=seconds)).title()} to thee timer with {data.event.reward.cost} {channel_point_name}. {f'Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}")
+            await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.user_name} added {str(datetime.timedelta(seconds=round(seconds))).title()} to thee timer with {data.event.reward.cost} {channel_point_name}. {f'Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}")
         else:
             await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.user_name} used {data.event.reward.cost} {channel_point_name} to redeem {data.event.reward.title}")
     except Exception as e:
@@ -1603,7 +1603,7 @@ async def twitch_points_transfer(chatter_document: Document, channel_document: D
         if chatter_document is not None:
             old_value = value
             if channel_document['hype_train_current']:
-                value *= ((channel_document['hype_train_current_level'] - 1) / 10) + standard_ehvent_mult
+                value *= ((channel_document['hype_train_current_level'] - 1) / 10 + standard_ehvent_mult)
             user_id = chatter_document['user_id']
             last_chatted = datetime.datetime.now()
             if not add and gamble:
@@ -1752,7 +1752,6 @@ async def run():
             obs.set_source_visibility("NS-Marathon", "TwitchTimer", True)
         else:
             obs.set_source_visibility("NS-Marathon", "TwitchTimer", False)
-        obs.set_source_visibility("NS-Marathon", "HypeEhVent", False)
         obs.set_source_visibility("NS-Overlay", "InAd", False)
     except Exception as f:
         formatted_time = fortime()
@@ -1769,6 +1768,7 @@ async def run():
                     break
                 elif user_input == 1:
                     while True:
+                        channel_document = await get_channel_document(user.id, user.display_name, user.login)
                         user_input = input(f"\n".join(bot_options_one) + "\n")
                         if not user_input.isdigit():
                             print(f"Must enter just a number")
@@ -1778,21 +1778,21 @@ async def run():
                                 print(f"Returning to Bot's Main Loop")
                                 break
                             elif user_input == 1:
-                                channel_document = await get_channel_document(user.id, user.display_name, user.login)
                                 if channel_document['writing_to_clock']:
-                                    channel_document['writing_to_clock'] = False
-                                    obs.set_source_visibility("NS-Marathon", "TwitchTimer", False)
+                                    new_value = False
                                 else:
-                                    channel_document['writing_to_clock'] = True
-                                    obs.set_source_visibility("NS-Marathon", "TwitchTimer", True)
-                                try:  # ToDo: FIGURE OUT WHY THIS TELLS ME REWARD ID IS FOR ANOTHER CHANNEL OR MY CHANNEL DOESN'T HAVE REWARDS ENABLED.....
-                                    for reward_id in marathon_rewards:
-                                        await bot.update_custom_reward(id_streamer, reward_id, is_enabled=channel_document['writing_to_clock'])
-                                        special_logger.info(f"{reward_id} is now {'EN' if channel_document['writing_to_clock'] else 'DIS'}ABLED")
-                                except Exception as f:
-                                    logger.error(f"Error switching rewards on/off for channel_document['writing_to_clock'] -- bot loop -- {f}")
-                                    pass
-                                print(f"Writing to clock is now {'EN' if channel_document['writing_to_clock'] else 'DIS'}ABLED")
+                                    new_value = True
+                                channel_document.update(writing_to_clock=new_value)
+                                channel_document.save()
+                                obs.set_source_visibility("NS-Marathon", "TwitchTimer", new_value)
+                                # try:  # ToDo: FIGURE OUT WHY THIS TELLS ME REWARD ID IS FOR ANOTHER CHANNEL OR MY CHANNEL DOESN'T HAVE REWARDS ENABLED.....
+                                #     for reward_id in marathon_rewards:
+                                #         await bot.update_custom_reward(id_streamer, reward_id, is_enabled=channel_document['writing_to_clock'])
+                                #         special_logger.info(f"{reward_id} is now {'EN' if channel_document['writing_to_clock'] else 'DIS'}ABLED")
+                                # except Exception as f:
+                                #     logger.error(f"Error switching rewards on/off for channel_document['writing_to_clock'] -- bot loop -- {f}")
+                                #     pass
+                                print(f"Writing to clock is now {'EN' if new_value else 'DIS'}ABLED")
                             elif user_input == 2:
                                 while True:
                                     channel_document = await get_channel_document(user.id, user.display_name, user.login)
@@ -1807,12 +1807,10 @@ async def run():
                                         elif user_input == 1:
                                             if channel_document['hype_train_current']:
                                                 new_value = False
-                                                obs.set_text("HypeEhVent", f"Hype EhVent Disabled -- 2X")
-                                                obs.set_source_visibility("NS-Marathon", "HypeEhVent", False)
                                             else:
                                                 new_value = True
-                                                obs.set_text("HypeEhVent", f"Hype EhVent Enabled -- 2X")
-                                                obs.set_source_visibility("NS-Marathon", "HypeEhVent", True)
+                                            obs.set_text("HypeEhVent", f"Hype EhVent {'En' if new_value else 'Dis'}abled -- 2X")
+                                            obs.set_source_visibility("NS-Marathon", "HypeEhVent", new_value)
                                             channel_document.update(hype_train_current=new_value)
                                             channel_document.save()
                                             print(f"Thee Hype EhVent(TRAIN_VARIABLE) is now {'EN' if new_value else 'DIS'}ABLED")
@@ -1825,7 +1823,7 @@ async def run():
                                                 else:
                                                     user_input = int(user_input)
                                                     if user_input == 1:
-                                                        new_level = input(f"Enter new level")
+                                                        new_level = input(f"Enter new level\n")
                                                         if not new_level.isdigit():
                                                             print(f"You must enter a number")
                                                         else:
@@ -1833,12 +1831,18 @@ async def run():
                                                             channel_document.update(hype_train_current_level=new_level)
                                                             channel_document.save()
                                                             print(f"Level has been set @ {new_level}")
+                                                            if new_level > 1:
+                                                                mult = (new_level - 1) / 10 + standard_ehvent_mult
+                                                            else:
+                                                                mult = standard_ehvent_mult
+                                                            obs.set_text("HypeEhVent", f"Hype EhVent Enabled -- {mult:.1f}X")
                                                             break
                                                     elif user_input == 2:
                                                         new_level = 1
                                                         channel_document.update(hype_train_current_level=new_level)
                                                         channel_document.save()
                                                         print(f"Level has been reset")
+                                                        obs.set_text("HypeEhVent", f"Hype EhVent Enabled -- {standard_ehvent_mult}X")
                                                         break
                             elif user_input == 3:
                                 reset_current_time()
@@ -1983,7 +1987,6 @@ if __name__ == "__main__":
             logger.error(f"{formatted_time}: Error in MAIN loop -- {e} - Exiting Program")
             asyncio.run(disconnect_mongo())
             exit()
-
     logging.shutdown()
     for entry in logger_list:
         try:
