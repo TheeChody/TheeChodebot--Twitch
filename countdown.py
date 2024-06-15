@@ -1,26 +1,29 @@
 import os
 import time
 import datetime
-from functions import clock, clock_max, clock_pause, clock_pause_reset, clock_total, clock_reset_time, get_sec, read_clock, write_clock, reset_max_time, reset_total_time, reset_current_time, loop_get_user_input_clock, reset_sofar_time, clock_sofar, refresh_pause, reset_pause  #, write_max_clock, write_total_clock
+from functions import clock, clock_max, clock_pause, clock_reset_pause, clock_total, clock_reset_time, read_clock, \
+    write_clock, reset_max_time, reset_total_time, reset_current_time, loop_get_user_input_clock, reset_sofar_time, clock_sofar, \
+    refresh_pause, reset_pause, WebsocketsManager
 from timeit import default_timer as how_long
 
 
-def countdown(total_seconds):
+def countdown(total_seconds: float):
     pause_time = int(refresh_pause())
     time.sleep(pause_time)
     while total_seconds >= 1:
         try:
             start = how_long()
-            write_clock(1, countdown=True)
-            timer = read_clock()
-            total_seconds = get_sec(timer)
+            write_clock(1, obs=obs, countdown=True)
+            # timer = read_clock()
+            # total_seconds = get_sec(timer)
+            total_seconds = float(read_clock())
             pause_time = int(refresh_pause())
             end = how_long()
             adjust = end - start
-            print(timer, pause_time - adjust), time.sleep(pause_time - adjust)
+            print(str(datetime.timedelta(seconds=round(total_seconds))).title(), total_seconds, pause_time - adjust), time.sleep(pause_time - adjust)
         except KeyboardInterrupt:
             break
-    print(read_clock(), f"TESTING STUFFS")
+    print(str(datetime.timedelta(seconds=round(float(read_clock())))).title(), f"TESTING STUFFS")
     if total_seconds <= 0:
         print("Thee countdown has reached zero seconds! Writing Reset Time!")
         with open(clock, "w") as file:
@@ -29,6 +32,9 @@ def countdown(total_seconds):
 
 if __name__ == "__main__":
     try:
+        obs = WebsocketsManager()
+        obs.connect()
+        print(f"OBS Connection Established")
         if not os.path.exists(clock):
             with open(clock, "w") as file:
                 file.write(clock_reset_time)
@@ -55,7 +61,7 @@ if __name__ == "__main__":
             print("File 'clock_sofar.txt' already exists")
         if not os.path.exists(clock_pause):
             with open(clock_pause, "w") as file:
-                file.write(clock_pause_reset)
+                file.write(clock_reset_pause)
                 print("File 'clock_pause.txt' created first time run")
         elif os.path.exists(clock_pause):
             print("File 'clock_pause'.txt already exists")
@@ -78,22 +84,24 @@ if __name__ == "__main__":
                             if not max_seconds.isdigit():
                                 print(f"You didn't enter a number")
                             else:
-                                max_seconds = int(max_seconds)
-                                max_seconds_formatted = str(datetime.timedelta(seconds=max_seconds))
+                                max_seconds = float(max_seconds)
+                                # max_seconds_formatted = str(datetime.timedelta(seconds=max_seconds))
                                 with open(clock_max, "w") as file:
-                                    file.write(max_seconds_formatted.title())
-                                print(f"Max time set successfully as {max_seconds_formatted.title()}")
+                                    # file.write(max_seconds_formatted.title())
+                                    file.write(str(max_seconds))
+                                print(f"Max time set successfully as {max_seconds}")
                                 break
                     while True:
                         user_seconds, add = loop_get_user_input_clock()
                         try:
                             if user_seconds.isdigit():
-                                user_seconds = int(user_seconds)
+                                user_seconds = float(user_seconds)
                                 write_clock(user_seconds, add)
                                 input("Hit ENTER To Start Thee Timer!\n")
-                                timer = read_clock()
-                                total_seconds = get_sec(timer)
-                                print(timer, total_seconds)  # DEBUGGING -- ++ 2 lines above -- otherwise countdown(get_sec(read_clock()))
+                                # timer = read_clock()
+                                # total_seconds = get_sec(timer)
+                                total_seconds = float(read_clock())
+                                print(str(datetime.timedelta(seconds=round(total_seconds))).title(), total_seconds)  # DEBUGGING -- ++ 2 lines above -- otherwise countdown(get_sec(read_clock()))
                                 countdown(total_seconds)
                                 # countdown(get_sec(read_clock()))  # For Run
                             else:
@@ -131,3 +139,5 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             print("Exiting countdown")
             break
+    obs.disconnect()
+    print(f"Disconnected from OBS")
