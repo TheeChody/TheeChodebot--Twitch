@@ -1,63 +1,82 @@
+import logging
 import os
 import time
 import datetime
 from functions import clock, clock_max, clock_pause, clock_reset_pause, clock_total, clock_reset_time, read_clock, \
     write_clock, reset_max_time, reset_total_time, reset_current_time, loop_get_user_input_clock, reset_sofar_time, clock_sofar, \
-    refresh_pause, reset_pause, WebsocketsManager
-from timeit import default_timer as timer
+    read_pause, reset_pause, WebsocketsManager, max_read_clock, fortime, setup_logger, logs_directory
+
+logger_list = []
 
 
 def countdown(total_seconds: float):
-    while total_seconds >= 1:
+    start_time = time.monotonic()
+    while total_seconds >= 1.0:
         try:
-            start = timer()
-            write_clock(1, obs=obs, countdown=True)
-            total_seconds = float(read_clock())
-            pause_time = int(refresh_pause())
-            end = timer()
-            adjust = end - start
-            print(str(datetime.timedelta(seconds=round(total_seconds))).title(), total_seconds, pause_time - adjust), time.sleep(pause_time - adjust)
+            total_seconds, pause = write_clock(1, obs=obs, countdown=True), float(read_pause())
+            logger.info(f"{str(datetime.timedelta(seconds=round(total_seconds))).title()} {total_seconds} {round(pause)} {pause}")
+            time.sleep(pause - ((time.monotonic() - start_time) % pause))
         except KeyboardInterrupt:
             break
-    print(str(datetime.timedelta(seconds=round(float(read_clock())))).title(), f"TESTING STUFFS")
+    logger.info(f"{str(datetime.timedelta(seconds=round(float(read_clock())))).title()} {total_seconds} TESTING STUFFS")
     if total_seconds <= 0:
-        print("Thee countdown has reached zero seconds! Writing Reset Time!")
+        logger.info("Thee countdown has reached zero seconds! Writing Reset Time!")
         with open(clock, "w") as file:
             file.write(clock_reset_time)
 
 
 if __name__ == "__main__":
+    init_time = fortime().replace(' ', '--').replace(':', '-')
+    logger = setup_logger('countdown_logger', f'{init_time}-countdown_log.log', logger_list)
     try:
         obs = WebsocketsManager()
         obs.connect()
-        print(f"OBS Connection Established")
+        logger.info(f"OBS Connection Established")
     except Exception as e:
-        print(f"Error establishing OBS connection -- {e}")
+        logger.error(f"Error establishing OBS connection -- {e}")
         exit()
     try:
         if not os.path.exists(clock):
             with open(clock, "w") as file:
                 file.write(clock_reset_time)
-                print("File 'clock.txt' created first time run")
-        if not os.path.exists(clock_max):
-            with open(clock_max, "w") as file:
-                file.write(clock_reset_time)
-                print("File 'clock_max.txt' created first time run")
+            logger.info("File 'clock.txt' created first time run")
         if not os.path.exists(clock_total):
             with open(clock_total, "w") as file:
                 file.write(clock_reset_time)
-                print("File 'clock_total.txt' created first time run")
+            logger.info("File 'clock_total.txt' created first time run")
         if not os.path.exists(clock_sofar):
             with open(clock_sofar, "w") as file:
                 file.write(clock_reset_time)
-                print("File 'clock_sofar.txt' created first time run")
+                logger.info("File 'clock_sofar.txt' created first time run")
         if not os.path.exists(clock_pause):
             with open(clock_pause, "w") as file:
                 file.write(clock_reset_pause)
-                print("File 'clock_pause.txt' created first time run")
+                logger.info("File 'clock_pause.txt' created first time run")
+        if not os.path.exists(clock_max):
+            while True:
+                max_seconds = input(f"Max Time File Not Found! Enter Max Time in SECONDS\n")
+                if not max_seconds.isdigit():
+                    print(f"You didn't enter a number")
+                else:
+                    max_seconds = float(max_seconds)
+                    with open(clock_max, "w") as file:
+                        file.write(str(max_seconds))
+                    print(f"Max time set successfully as {str(datetime.timedelta(seconds=round(max_seconds))).title()} - {max_seconds}")
+                    break
+        else:
+            if float(max_read_clock()) == 0.0:
+                while True:
+                    max_seconds = input(f"Enter new max time for marathon\n")
+                    if not max_seconds.isdigit():
+                        print("You must enter a number")
+                    else:
+                        max_seconds = float(max_seconds)
+                        with open(clock_max, "w") as file:
+                            file.write(str(max_seconds))
+                        print(f"Max time set successfully as {str(datetime.timedelta(seconds=round(max_seconds))).title()} - {max_seconds}")
     except Exception as e:
-        print(f"Error creating one of thee text files -- {e}")
-        exit()
+        logger.error(f"Error in data check -- {e}")
+        quit()
     while True:
         try:
             user_input = input(f"Enter 1 to enter countdown\nEnter 2 to configure countdown\nEnter 0 to quit countdown\n")
@@ -67,26 +86,15 @@ if __name__ == "__main__":
                     print(f"Exiting countdown")
                     break
                 elif user_input == 1:
-                    if not os.path.exists(clock_max):
-                        while True:
-                            max_seconds = input(f"Max Time File Not Found! Enter Max Time in SECONDS\n")
-                            if not max_seconds.isdigit():
-                                print(f"You didn't enter a number")
-                            else:
-                                max_seconds = float(max_seconds)
-                                with open(clock_max, "w") as file:
-                                    file.write(str(max_seconds))
-                                print(f"Max time set successfully as {max_seconds}")
-                                break
+
                     while True:
                         user_seconds, add = loop_get_user_input_clock()
                         try:
                             if user_seconds.isdigit():
-                                user_seconds = float(user_seconds)
-                                write_clock(user_seconds, add, obs=obs)
+                                write_clock(float(user_seconds), add, obs=obs)
                                 input("Hit ENTER To Start Thee Timer!\n")
                                 total_seconds = float(read_clock())
-                                print(str(datetime.timedelta(seconds=round(total_seconds))).title(), total_seconds)  # DEBUGGING -- ++ 2 lines above -- otherwise countdown(float(read_clock()))
+                                logger.info(f"{str(datetime.timedelta(seconds=round(total_seconds))).title()} {total_seconds}")  # DEBUGGING -- ++ 2 lines above -- otherwise countdown(float(read_clock()))
                                 countdown(total_seconds)
                                 # countdown(float(read_clock()))  # For Run
                             else:
@@ -125,4 +133,11 @@ if __name__ == "__main__":
             print("Exiting countdown")
             break
     obs.disconnect()
-    print(f"Disconnected from OBS")
+    logger.info(f"Disconnected from OBS")
+    logging.shutdown()
+    for entry in logger_list:
+        try:
+            os.rename(f"{logs_directory}{entry}", f"{logs_directory}\\archive_log\\{entry}")
+        except Exception as e:
+            print(e)
+            pass
