@@ -388,14 +388,14 @@ def reset_level_const(level_const):
 
 def write_sofar(second: float, obs: WebsocketsManager = None):
     with open(clock_sofar, "r") as read:
-        current_sofar = read.read()
+        current_sofar = float(read.read())
     with open(clock_sofar, "w") as file:
-        file.write(str(float(current_sofar) + second))
-    if obs is not None and (float(current_sofar) + second) % 86400 == 0.0:
-        obs.set_text("Day", f"Day {str(int((float(current_sofar) + second) / 86400))}")
+        file.write(str(current_sofar + second))
+    if obs is not None and (current_sofar + second) % 86400.0 == 0.0:
+        obs.set_text("Day", f"Day {str(int(((current_sofar + second) / 86400.0) + 1))}")
 
 
-def write_clock(seconds: float, add: bool = False, channel_document: Document = None, obs: WebsocketsManager = None, countdown: bool = False):
+def write_clock(seconds: float, add: bool = False, channel_document: Document = None, obs: WebsocketsManager = None, countdown: bool = False, manual: bool = False):
     try:
         formatted_missed_seconds = None
         current_seconds = float(read_clock())
@@ -418,8 +418,9 @@ def write_clock(seconds: float, add: bool = False, channel_document: Document = 
             current_seconds += seconds
             with open(clock, "w") as file:
                 file.write(str(current_seconds))
-            with open(clock_total, "w") as file:
-                file.write(str(total_seconds))
+            if not manual:
+                with open(clock_total, "w") as file:
+                    file.write(str(total_seconds))
         elif not add:
             if seconds >= current_seconds != 1:  # This SHOULD Work to Counter Timer Going Below 0 or minus seconds haha
                 seconds = current_seconds - 1

@@ -14,7 +14,7 @@ def countdown(total_seconds: float):
     while total_seconds >= 1.0:
         try:
             total_seconds, pause = write_clock(1, obs=obs, countdown=True), float(read_pause())
-            logger.info(f"{str(datetime.timedelta(seconds=round(total_seconds))).title()} {total_seconds} {round(pause)} {pause}")
+            logger.info(f"{str(datetime.timedelta(seconds=round(total_seconds))).title()} {total_seconds} {pause} -- {datetime.datetime.now().strftime('%H:%M:%S')}")
             time.sleep(pause - ((time.monotonic() - start_time) % pause))
         except KeyboardInterrupt:
             break
@@ -23,6 +23,22 @@ def countdown(total_seconds: float):
         logger.info("Thee countdown has reached zero seconds! Writing Reset Time!")
         with open(clock, "w") as file:
             file.write(clock_reset_time)
+        obs.set_text("TwitchTimer", f"Thee Timer Has Hit Zero. Much Love To All <3")
+        shutdown()
+
+
+def shutdown():
+    obs.disconnect()
+    logger.info(f"Disconnected from OBS")
+    logging.shutdown()
+    for entry in logger_list:
+        try:
+            os.rename(f"{logs_directory}{entry}", f"{logs_directory}\\archive_log\\{entry}")
+        except Exception as e:
+            print(e)
+            pass
+    print(f"Shutdown Sequence Completed")
+    quit(420)
 
 
 if __name__ == "__main__":
@@ -91,7 +107,7 @@ if __name__ == "__main__":
                         user_seconds, add = loop_get_user_input_clock()
                         try:
                             if user_seconds.isdigit():
-                                write_clock(float(user_seconds), add, obs=obs)
+                                write_clock(float(user_seconds), add, obs=obs, manual=True)
                                 input("Hit ENTER To Start Thee Timer!\n")
                                 total_seconds = float(read_clock())
                                 logger.info(f"{str(datetime.timedelta(seconds=round(total_seconds))).title()} {total_seconds}")  # DEBUGGING -- ++ 2 lines above -- otherwise countdown(float(read_clock()))
@@ -132,12 +148,4 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             print("Exiting countdown")
             break
-    obs.disconnect()
-    logger.info(f"Disconnected from OBS")
-    logging.shutdown()
-    for entry in logger_list:
-        try:
-            os.rename(f"{logs_directory}{entry}", f"{logs_directory}\\archive_log\\{entry}")
-        except Exception as e:
-            print(e)
-            pass
+    shutdown()

@@ -69,7 +69,11 @@ marathon_rewards = ["8099f524-c2e8-41de-b31f-35de4ff7f084",  # 10
                     "55ec31e9-98f8-46ef-939e-c7835514fd1b",  # 20
                     "dc306b71-9fd2-422e-968b-61690c1b7387"]  # 30  # ToDo: FIGURE OUT WHY THIS SHIT SAYS IT'S NOT MINE
 keywords = {
-    r"chodybot": {"response": "What?"}
+    r"chodybot": {"response": "What?"},
+    r"deecoy": {"response": "TheePettyMassacre is thee decoy, toss her in! Let thee rage consume them"},
+    r"tooodles": {"response": "TTTOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOODDDDDDDDDDDDDDDLLLLLLLLLLLLLLEEEEEEEEEEEESSSSSSSSSSSSSSSSSSSSSSSSSS"},
+    r"ruubi": {"response": "Shine bright like a dia... RUBI!!"},
+    r"sneakish": {"response": "Be sneaky like silen(t)cer56"}
 }
 delete_phrases = ["bestviewers",
                   "cheapviewers"]
@@ -94,6 +98,7 @@ target_scopes = [AuthScope.BITS_READ,
                  AuthScope.CHANNEL_MANAGE_REDEMPTIONS,
                  AuthScope.CHANNEL_READ_SUBSCRIPTIONS,
                  AuthScope.CHANNEL_MANAGE_PREDICTIONS,
+                 AuthScope.MODERATOR_MANAGE_BANNED_USERS,
                  AuthScope.MODERATOR_MANAGE_CHAT_MESSAGES]  # ToDo: FIGURE OUT WHY THEE PREDICTION SHIT FLIPS OUT ON END/LOCK CALL!!!!!!!!!!!
 logger_list = []
 
@@ -125,21 +130,22 @@ async def on_stream_ad_start(data: ChannelAdBreakBeginEvent):
             auto_response = f"this is a manually ran ad to attempt to time things better"
         channel_document = await get_channel_document(data.event.broadcaster_user_id, data.event.broadcaster_user_name, data.event.broadcaster_user_login)
         ad_schedule = await bot.get_ad_schedule(id_streamer)
-        ad_next_seconds, now_time_seconds = await get_ad_time(ad_schedule)
-        seconds_till_ad = ad_next_seconds - now_time_seconds
+        ad_till_next_seconds, now_time_seconds = await get_ad_time(ad_schedule)
+        ad_length = ad_schedule.duration
+        seconds_till_ad = ad_till_next_seconds - now_time_seconds
         if channel_document['writing_to_clock']:
             with open(clock_pause, "w") as file:
-                file.write(str(data.event.duration_seconds))
-            special_logger.info(f"Wrote pause time in ad-function: {data.event.duration_seconds}")
-            marathon_response = f"Marathon Timer Paused for {data.event.duration_seconds}"
-        await bot.send_chat_message(id_streamer, id_streamer, f"Incoming ad break, {auto_response} and should only last {data.event.duration_seconds} seconds. Next ad inbound in {datetime.timedelta(seconds=seconds_till_ad)}.{f' {marathon_response}.' if marathon_response is not None else ''}")
+                file.write(str(float(ad_length)))
+            special_logger.info(f"Wrote pause time in ad-function: {ad_length}")
+            marathon_response = f"Marathon Timer Paused for {ad_length}"
+        await bot.send_chat_message(id_streamer, id_streamer, f"Incoming ad break, {auto_response} and should only last {ad_length} seconds. Next ad inbound in {datetime.timedelta(seconds=seconds_till_ad)}.{f' {marathon_response}.' if marathon_response is not None else ''}")
         obs.set_source_visibility("NS-Overlay", "InAd", True)
         if channel_document['writing_to_clock']:
             await asyncio.sleep(2)
             with open(clock_pause, "w") as file:
                 file.write(str(old_pause))
-                special_logger.info(f"Wrote pause time in ad-function: {old_pause}")
-        await asyncio.sleep(data.event.duration_seconds - 2 if channel_document['writing_to_clock'] else data.event.duration_seconds)
+            special_logger.info(f"Wrote pause time in ad-function: {old_pause}")
+        await asyncio.sleep(ad_length - 2 if channel_document['writing_to_clock'] else ad_length)
         obs.set_source_visibility("NS-Overlay", "InAd", False)
     except Exception as e:
         formatted_time = fortime()
@@ -204,7 +210,56 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
             for letter in cmd:
                 command = command.removeprefix(letter)
             command = command.lower()
-            if command.replace(" ", "").startswith(("bittiesleader", "bitsleader")):
+            if command.replace(" ", "").startswith("addtime"):
+                try:
+                    time_value = command.replace(" ", "").replace("addtime", "")
+                    if not time_value.isdigit():
+                        await bot.send_chat_message(id_streamer, id_streamer, f"Your command should resemble, where NUMBER_HERE put thee minutes, valid mins are 10, 20, 30: {' or '.join(cmd)} addtime NUMBER_HERE", reply_parent_message_id=data.event.message_id)
+                        end = timer()
+                        special_logger.info(f"fin--addtime command -- {end - start}")
+                        return
+                    time_value = int(time_value)
+                    if time_value == 10:
+                        if not chatter_document['user_points'] >= 10000:
+                            await bot.send_chat_message(id_streamer, id_streamer, f"You don't have enough points to do that", reply_parent_message_id=data.event.message_id)
+                            end = timer()
+                            special_logger.info(f"fin--addtime command -- {end - start}")
+                            return
+                        new_user_points = chatter_document['user_points'] - 10000
+                        time_add = 600.0
+                    elif time_value == 20:
+                        if not chatter_document['user_points'] >= 18000:
+                            await bot.send_chat_message(id_streamer, id_streamer, f"You don't have enough points to do that", reply_parent_message_id=data.event.message_id)
+                            end = timer()
+                            special_logger.info(f"fin--addtime command -- {end - start}")
+                            return
+                        new_user_points = chatter_document['user_points'] - 18000
+                        time_add = 1200.0
+                    elif time_value == 30:
+                        if not chatter_document['user_points'] >= 26000:
+                            await bot.send_chat_message(id_streamer, id_streamer, f"You don't have enough points to do that", reply_parent_message_id=data.event.message_id)
+                            end = timer()
+                            special_logger.info(f"fin--addtime command -- {end - start}")
+                            return
+                        new_user_points = chatter_document['user_points'] - 26000
+                        time_add = 1800.0
+                    else:
+                        await bot.send_chat_message(id_streamer, id_streamer, f"{time_value} isn't a valid time choice. Valid choices are 10, 20, 30.", reply_parent_message_id=data.event.message_id)
+                        end = timer()
+                        special_logger.info(f"fin--addtime command -- {end - start}")
+                        return
+                    seconds, time_not = write_clock(time_add, True, channel_document, obs)
+                    chatter_document.update(user_points=new_user_points)
+                    chatter_document.save()
+                    await bot.send_chat_message(id_streamer, id_streamer, f"{chatter_username} added {datetime.timedelta(seconds=round(seconds))} to thee clock{f', MAX TIME HIT {time_not} not added.' if time_not is not None else '.'}")
+                    special_logger.info(f"timeadded -- {datetime.timedelta(seconds=round(seconds))} -- {seconds} by {chatter_username}{f' -- MAX TIME HIT {time_not} not added.' if time_not is not None else ''}")
+                except Exception as f:
+                    formatted_time = fortime()
+                    logger.error(f"{formatted_time}: Error in on_stream_chat_message - addtime command -- {f}")
+                    end = timer()
+                    special_logger.info(f"fin--addtime command -- {end - start}")
+                    return
+            elif command.replace(" ", "").startswith(("bittiesleader", "bitsleader")):
                 try:
                     bits_lb = await bot.get_bits_leaderboard()
                     users_board = []
@@ -476,6 +531,15 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                     logger.error(f"{formatted_time}: Error in on_stream_chat_message - points check command -- {f}")
                     end = timer()
                     special_logger.info(f"fin--points check command -- {end - start}")
+                    return
+            elif command.replace(" ", "").startswith(("points4time", "points4timerate")):
+                try:
+                    await bot.send_chat_message(id_streamer, id_streamer, f"Valid times are 10, 20, 30. Cost 10,000-10M/18,000-20M/26,000-30M", reply_parent_message_id=data.event.message_id)
+                except Exception as f:
+                    formatted_time = fortime()
+                    logger.error(f"{formatted_time}: Error in on_stream_chat_message - points4time command -- {f}")
+                    end = timer()
+                    special_logger.info(f"fin--points4time command -- {end - start}")
                     return
             elif command.replace(" ", "").startswith("pointsleader"):
                 try:
@@ -794,12 +858,10 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                     if channel_document['cmd_tag_last_it'][0] is not None:
                         if channel_document['cmd_tag_last_it'][0] not in channel_document['non_tag_list']:
                             channel_document['non_tag_list'].append(channel_document['cmd_tag_last_it'][0])
-                            response = f"{channel_document['cmd_tag_last_it'][1]} has been moved to thee untag list" if \
-                            channel_document['cmd_tag_last_it'][1] is not None else ""
+                            response = f"{channel_document['cmd_tag_last_it'][1]} has been moved to thee untag list" if channel_document['cmd_tag_last_it'][1] is not None else ""
                     channel_document.update(cmd_tag_last_it=[None, None, None])
                     channel_document.save()
-                    await bot.send_chat_message(id_streamer, id_streamer,
-                                                f"Tag game reset{f', {response}' if response is not None else '.'}")
+                    await bot.send_chat_message(id_streamer, id_streamer, f"Tag game reset{f', {response}' if response is not None else '.'}")
                 except Exception as f:
                     formatted_time = fortime()
                     logger.error(f"{formatted_time}: Error in on_stream_chat_message -- tagreset command -- {f}")
@@ -836,7 +898,12 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                     end = timer()
                     special_logger.info(f"fin--updateudocs command -- {end - start}")
                     return
+            else:
+                end = timer()
+                special_logger.info(f"fin--{command} command -- {chatter_username}/{chatter_id} -- {end - start}")
+                return
         else:
+            phrase_del = False
             try:
                 messagecont = data.event.message.text.replace(" ", "").lower()
                 for keyword, properties in keywords.items():
@@ -845,12 +912,22 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 for phrase in delete_phrases:
                     if messagecont.startswith(phrase):
                         await bot.delete_chat_message(id_streamer, id_streamer, data.event.message_id)
+                        if chatter_id in channel_document['spam_list']:
+                            await bot.ban_user(id_streamer, id_streamer, chatter_id, f"Bot Spam -- {data.event.message.text}")
+                        else:
+                            new_spam_list = channel_document['spam_list']
+                            new_spam_list.append(chatter_id)
+                            channel_document.update(spam_list=new_spam_list)
+                            channel_document.save()
+                        phrase_del = True
+                        break
             except Exception as f:
                 formatted_time = fortime()
-                logger.error(f"{formatted_time}: Error in on_stream_chat_message - keywords_loop -- {f}")
+                logger.error(f"{formatted_time}: Error in on_stream_chat_message - keywords/phrases_loop -- {f}")
                 pass
             try:
-                await twitch_points_transfer(chatter_document, channel_document, standard_points)
+                if not phrase_del:
+                    await twitch_points_transfer(chatter_document, channel_document, standard_points)
                 chat_logger.info(f"{chatter_id}/{chatter_username}: {data.event.message.text if data.event.message_type == 'text' else f'Last message was a type({data.event.message_type}) not a text type.'}")
             except Exception as f:
                 formatted_time = fortime()
@@ -893,8 +970,6 @@ async def on_stream_chat_notification(data: ChannelChatNotificationEvent):
             await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.chatter_user_name} is paying forward thee subbie gifted by {data.event.pay_it_forward.gifter_user_name} to {data.event.sub_gift.recipient_user_name}. {response_thanks}")
         elif data.event.notice_type == "bits_badge_tier":
             await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.chatter_user_name} just unlocked thee {data.event.bits_badge_tier.tier} bitties badge!! {response_thanks}")
-        else:
-            special_logger.info(f"on_stream_chat_notification -- {data.event.notice_type}")
     except Exception as e:
         formatted_time = fortime()
         logger.error(f"{formatted_time}: Error in on_stream_chat_notification -- {e}")
@@ -916,7 +991,6 @@ async def on_stream_cheer(data: ChannelCheerEvent):
         if channel_document['writing_to_clock']:
             seconds = float(standard_seconds * data.event.bits)
             seconds, time_not_added = write_clock(seconds, True, channel_document, obs)
-            # seconds = float(f'{seconds:.1f}')
             response = f", adding {str(datetime.timedelta(seconds=round(seconds))).title()} to thee clock!! {f'Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}"
         await bot.send_chat_message(id_streamer, id_streamer, f"{chatter_username} has cheered {data.event.bits}{response}")
     except Exception as e:
@@ -940,7 +1014,7 @@ async def on_stream_follow(data: ChannelFollowEvent):
             if channel_document['writing_to_clock']:
                 seconds = float(standard_seconds * follow_seconds)
                 seconds, time_not_added = write_clock(seconds, True, channel_document, obs)
-                response = f"! {str(datetime.timedelta(seconds=round(seconds))).title()} to thee clock!! {f'Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}"
+                response = f", adding {str(datetime.timedelta(seconds=round(seconds))).title()} to thee clock!! {f'Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}"
             new_follower_list = channel_document['channel_followers_list']
             new_follower_list.append(data.event.user_id)
             channel_document.update(channel_followers_list=new_follower_list)
@@ -971,12 +1045,13 @@ async def on_stream_hype_begin(data: HypeTrainEvent):
         if channel_document is None:
             await bot.send_chat_message(id_streamer, id_streamer, f"Error grabbing/creating channel document. Try again later")
             return
+        await bot.send_chat_message(id_streamer, id_streamer, f"Choo Choooooooo!! Hype train started by {data.event.last_contribution.user_name}{f', also triggering a Hype EhVent, doubling all twitch contributions to thee clock!!' if channel_document['writing_to_clock'] else '!'}{response}")
         channel_document.update(hype_train_current=True, hype_train_current_level=data.event.level)
         channel_document.save()
-        await bot.send_chat_message(id_streamer, id_streamer, f"Choo Choooooooo!! Hype train started by {data.event.last_contribution.user_name}{f', also triggering a Hype EhVent, doubling all twitch contributions to thee clock!!' if channel_document['writing_to_clock'] else '!'}{response}")
-        special_logger.info(f"Thee Hype EhVent ENABLED")
-        obs.set_text("HypeEhVent", f"Hype EhVent Enabled -- {standard_ehvent_mult}X")
-        obs.set_source_visibility("NS-Marathon", "HypeEhVent", True)
+        special_logger.info(f"Thee Hype EhVent ENABLED -- {standard_ehvent_mult}X" if channel_document['writing_to_clock'] else f"Hype Train Ended")
+        if channel_document['writing_to_clock']:
+            obs.set_text("HypeEhVent", f"Hype EhVent Enabled -- {standard_ehvent_mult}X")
+            obs.set_source_visibility("NS-Marathon", "HypeEhVent", True)
     except Exception as e:
         formatted_time = fortime()
         logger.error(f"{formatted_time}: Error in 'on_stream_hype_begin' -- {e}")
@@ -995,13 +1070,14 @@ async def on_stream_hype_end(data: HypeTrainEndEvent):
         else:
             record_beat = False
             new_hype_train_record_level = channel_document['hype_train_record_level']
+        await bot.send_chat_message(id_streamer, id_streamer, f"Hype Train Completed @ {data.event.level}!!{f' New local record reached at {new_hype_train_record_level}!!' if record_beat else ''}{f' Thee Hype EhVent is now over, all contributions to thee clock have returned to normal.' if channel_document['writing_to_clock'] else ''} Much Love To All <3")
         formatted_time = fortime()
         channel_document.update(hype_train_last=formatted_time, hype_train_current=False, hype_train_current_level=1,
                                 hype_train_last_level=data.event.level, hype_train_record_level=new_hype_train_record_level)
         channel_document.save()
-        await bot.send_chat_message(id_streamer, id_streamer, f"Hype Train Completed @ {data.event.level}!!{f' New local record reached at {new_hype_train_record_level}!!' if record_beat else ''}{f' Thee Hype EhVent is now over, all contributions to thee clock have returned to normal.' if channel_document['writing_to_clock'] else ''} Much Love To All <3")
-        special_logger.info(f"Thee Hype EhVent DISABLED")
-        obs.set_source_visibility("NS-Marathon", "HypeEhVent", False)
+        special_logger.info(f"Thee Hype EhVent DISABLED" if channel_document['writing_to_clock'] else f"Hype Train Ended")
+        if channel_document['writing_to_clock']:
+            obs.set_source_visibility("NS-Marathon", "HypeEhVent", False)
     except Exception as e:
         formatted_time = fortime()
         logger.error(f"{formatted_time}: Error in 'on_stream_hype_end' -- {e}")
@@ -1035,12 +1111,13 @@ async def on_stream_hype_progress(data: HypeTrainEvent):
             new_hype_train_current_level = channel_document['hype_train_current_level']
         channel_document.update(hype_train_current_level=new_hype_train_current_level)
         channel_document.save()
-        # special_logger.info(f"New Hype Train Level!! Currently @ {data.event.level}.{response}")
         if new_hype_train_current_level > 1:
             mult = (new_hype_train_current_level - 1) / 10 + standard_ehvent_mult
         else:
             mult = standard_ehvent_mult
-        obs.set_text("HypeEhVent", f"HypeEhVent Enabled -- {mult:.1f}X")
+        special_logger.info(f"New Hype EhVent Level -- {mult:.1f}X -- {data.event.level} -- {response}" if channel_document['writing_to_clock'] else f"New Hype Train Level!! Currently @ {data.event.level} -- {response}")
+        if channel_document['writing_to_clock']:
+            obs.set_text("HypeEhVent", f"HypeEhVent Enabled -- {mult:.1f}X")
     except Exception as e:
         formatted_time = fortime()
         logger.error(f"{formatted_time}: Error in 'on_stream_hype_progress' -- {e}")
@@ -1083,15 +1160,15 @@ async def on_stream_point_redemption(data: ChannelPointsCustomRewardRedemptionAd
         channel_document = await get_channel_document(data.event.broadcaster_user_id, data.event.broadcaster_user_name, data.event.broadcaster_user_login)
         special_logger.info(f"fin--RewardID: {data.event.reward.id} -- {data.event.reward.title}")
         if data.event.reward.title == "Add 10 Mins" and channel_document['writing_to_clock']:
-            seconds = 600 * standard_seconds
+            seconds = 600
             seconds, time_not_added = write_clock(seconds, True, channel_document, obs)
             await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.user_name} added {str(datetime.timedelta(seconds=round(seconds))).title()} to thee timer with {data.event.reward.cost} {channel_point_name}. {f'Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}")
         elif data.event.reward.title == "Add 20 Mins" and channel_document['writing_to_clock']:
-            seconds = 1200 * standard_seconds
+            seconds = 1200
             seconds, time_not_added = write_clock(seconds, True, channel_document, obs)
             await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.user_name} added {str(datetime.timedelta(seconds=round(seconds))).title()} to thee timer with {data.event.reward.cost} {channel_point_name}. {f'Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}")
         elif data.event.reward.title == "Add 30 Mins" and channel_document['writing_to_clock']:
-            seconds = 1800 * standard_seconds
+            seconds = 1800
             seconds, time_not_added = write_clock(seconds, True, channel_document, obs)
             await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.user_name} added {str(datetime.timedelta(seconds=round(seconds))).title()} to thee timer with {data.event.reward.cost} {channel_point_name}. {f'Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}")
         else:
@@ -1191,6 +1268,10 @@ async def on_stream_raid_in(data: ChannelRaidEvent):
     try:
         response = "!!!"
         channel_document = await get_channel_document(data.event.to_broadcaster_user_id, data.event.to_broadcaster_user_name, data.event.to_broadcaster_user_id)
+        chatter_document = await get_chatter_document(data)
+        if chatter_document is not None:
+            points = float(((raid_seconds / 4) * standard_seconds) * data.event.viewers)
+            await twitch_points_transfer(chatter_document, channel_document, points)
         if channel_document['writing_to_clock']:
             seconds = float((raid_seconds * standard_seconds) * data.event.viewers)
             seconds, time_not_added = write_clock(seconds, True, channel_document, obs)
@@ -1239,14 +1320,14 @@ async def on_stream_update(data: ChannelUpdateEvent):
 
 
 async def on_stream_start(data: StreamOnlineEvent):
-    try:
+    try:  # ToDo Figure out why first ad start is soo off, last was 7 hours....
         channel_document = await get_channel_document(data.event.broadcaster_user_id, data.event.broadcaster_user_name, data.event.broadcaster_user_login)
         if channel_document is not None:
             channel_info = await bot.get_channel_information(id_streamer)
             channel_document.update(channel_online=True, channel_title=channel_info[0].title, channel_game_id=channel_info[0].game_id,
                                     channel_game_name=channel_info[0].game_name, channel_content_class=channel_info[0].content_classification_labels,
-                                    channel_tags=channel_info[0].tags, channel_branded=channel_info[0].is_branded_content, hype_train_current=False, hype_train_current_level=1,
-                                    cmd_tag_last_it=[None, None, None])  #, lurk_list=[], non_tag_list=[])
+                                    channel_tags=channel_info[0].tags, channel_branded=channel_info[0].is_branded_content, hype_train_current=False,
+                                    hype_train_current_level=1, cmd_tag_last_it=[None, None, None])  #, lurk_list=[], non_tag_list=[])
             channel_document.save()
         ad_schedule = await bot.get_ad_schedule(id_streamer)
         ad_next_seconds, now_seconds = await get_ad_time(ad_schedule)
@@ -1411,7 +1492,7 @@ async def get_chatter_document(data):
             if FileNotFoundError:
                 try:
                     users_collection = twitch_database.twitch.get_collection('users')
-                    formatted_time = fortime()
+                    formatted_time = datetime.datetime.now()
                     new_chatter_document = Users(user_id=chatter_id, user_name=chatter_name, user_login=chatter_login,
                                                  first_chat_date=formatted_time)
                     new_chatter_document_dict = new_chatter_document.to_mongo()
@@ -1625,10 +1706,6 @@ async def run():
     event_sub = EventSubWebsocket(bot)
     event_sub.start()
 
-    # chat = Chat(bot)
-    # chat.register_event(ChatEvent.READY, on_ready)
-    # chat.register_command('reply', test_command)
-
     # follower_list = []
     # for x in range(99):
     #     follower_list.append(await bot.get_channel_followers(id_streamer, ))
@@ -1662,8 +1739,11 @@ async def run():
         channel_document = await get_channel_document(user.id, user.display_name, user.login)
         if channel_document['writing_to_clock']:
             obs.set_source_visibility("NS-Marathon", "TwitchTimer", True)
+            obs.set_source_visibility("NS-Marathon", "Day", True)
         else:
             obs.set_source_visibility("NS-Marathon", "TwitchTimer", False)
+            obs.set_source_visibility("NS-Marathon", "Day", False)
+        obs.set_source_visibility("NS-Marathon", "HypeEhVent", False)
         obs.set_source_visibility("NS-Overlay", "InAd", False)
     except Exception as f:
         formatted_time = fortime()
@@ -1771,7 +1851,7 @@ async def run():
                 elif user_input == 3:
                     number, add = loop_get_user_input_clock()
                     if number.isdigit():
-                        write_clock(float(number), add, obs=obs)
+                        write_clock(float(number), add, obs=obs, manual=True)
                     else:
                         print(f"Invalid Input -- You put '{number}' - If None, see error logs - which is a {type(number)} -- USE NUMPAD +/-!!")
                 else:
@@ -1877,7 +1957,7 @@ if __name__ == "__main__":
                     while True:
                         number, add = loop_get_user_input_clock()
                         if number.isdigit():
-                            write_clock(float(number), add)
+                            write_clock(float(number), add, manual=True)
                             break
                         else:
                             print(f"Invalid Input -- You put '{number}' - If None, see error logs -  which is a {type(number)} -- USE NUMPAD +/-!!")

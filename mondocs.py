@@ -21,6 +21,7 @@ class Channels(Document):
     writing_to_clock = BooleanField(default=False)
     cmd_tag_last_it = ListField(default=[None, None, None])  # ID, NAME, TIME
     ignore_list = ListField(default=["431026547", "52268235", "253326823", "100135110", "431199284", "216527497"])
+    spam_list = ListField(default=[])
     lurk_list = ListField(default=[])
     non_tag_list = ListField(default=[])
     meta = {"db_alias": "default"}
