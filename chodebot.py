@@ -48,6 +48,8 @@ from twitchAPI.object.eventsub import ChannelAdBreakBeginEvent, ChannelChatMessa
 #  gets added as normal after time limit is exceeded if unsuccessful ---                                                           |
 #  Figure out music queueing system, gonna need ability to manipulate VLC player.. or make my own? haha yeah right
 #  addon to ^^ use pytube to gather track info/download video if not downloaded already
+#  Referral system? Generates bonus points for brining in new people.. maybe I can program some sorta xp/point boost that users can build up
+#  that expires as used -- 1,000 points at 5% boosted rate or something...
 #  ---------------------------------------------------- End of List ----------------------------------------------------
 
 load_dotenv()
@@ -131,12 +133,12 @@ async def on_stream_ad_start(data: ChannelAdBreakBeginEvent):
         channel_document = await get_channel_document(data.event.broadcaster_user_id, data.event.broadcaster_user_name, data.event.broadcaster_user_login)
         ad_schedule = await bot.get_ad_schedule(id_streamer)
         ad_till_next_seconds, now_time_seconds = await get_ad_time(ad_schedule)
-        ad_length = ad_schedule.duration
+        ad_length = float(ad_schedule.duration)
         seconds_till_ad = ad_till_next_seconds - now_time_seconds
         if channel_document['writing_to_clock']:
             with open(clock_pause, "w") as file:
-                file.write(str(float(ad_length)))
-            special_logger.info(f"Wrote pause time in ad-function: {ad_length}")
+                file.write(str(ad_length))
+            special_logger.info(f"{fortime()}: Wrote pause time in on_stream_ad_start: {ad_length}")
             marathon_response = f"Marathon Timer Paused for {ad_length}"
         await bot.send_chat_message(id_streamer, id_streamer, f"Incoming ad break, {auto_response} and should only last {ad_length} seconds. Next ad inbound in {datetime.timedelta(seconds=seconds_till_ad)}.{f' {marathon_response}.' if marathon_response is not None else ''}")
         obs.set_source_visibility("NS-Overlay", "InAd", True)
@@ -144,7 +146,7 @@ async def on_stream_ad_start(data: ChannelAdBreakBeginEvent):
             await asyncio.sleep(2)
             with open(clock_pause, "w") as file:
                 file.write(str(old_pause))
-            special_logger.info(f"Wrote pause time in ad-function: {old_pause}")
+            special_logger.info(f"{fortime()}: Wrote pause time in on_stream_ad_start: {old_pause}")
         await asyncio.sleep(ad_length - 2 if channel_document['writing_to_clock'] else ad_length)
         obs.set_source_visibility("NS-Overlay", "InAd", False)
     except Exception as e:
