@@ -139,6 +139,77 @@ def setup_logger(name: str, log_file: str, logger_list: list, level: logging = l
         return None
 
 
+def configure_write_to_clock(channel_document: Document, obs: WebsocketsManager):
+    if channel_document['writing_to_clock']:
+        new_value = False
+    else:
+        new_value = True
+    channel_document.update(writing_to_clock=new_value)
+    channel_document.save()
+    obs.set_source_visibility("NS-Marathon", "TwitchTimer", new_value)
+    # try:  # ToDo: FIGURE OUT WHY THIS TELLS ME REWARD ID IS FOR ANOTHER CHANNEL OR MY CHANNEL DOESN'T HAVE REWARDS ENABLED.....
+    #     for reward_id in marathon_rewards:
+    #         await bot.update_custom_reward(id_streamer, reward_id, is_enabled=channel_document['writing_to_clock'])
+    #         special_logger.info(f"{reward_id} is now {'EN' if channel_document['writing_to_clock'] else 'DIS'}ABLED")
+    # except Exception as f:
+    #     logger.error(f"Error switching rewards on/off for channel_document['writing_to_clock'] -- bot loop -- {f}")
+    #     pass
+    print(f"Writing to clock is now {'EN' if new_value else 'DIS'}ABLED")
+
+
+def configure_hype_ehvent(channel_document: Document, obs: WebsocketsManager):
+    while True:
+        user_input = input(
+            f"Enter 1 to EN/DIS Able HypeEhVent\nEnter 2 to Configure HypeEhVent Level\nEnter 0 to go back\n")
+        if not user_input.isdigit():
+            print(f"Must enter a number")
+        else:
+            user_input = int(user_input)
+            if user_input == 0:
+                print(f"Going Back")
+                break
+            elif user_input == 1:
+                if channel_document['hype_train_current']:
+                    new_value = False
+                else:
+                    new_value = True
+                obs.set_text("HypeEhVent", f"Hype EhVent {'En' if new_value else 'Dis'}abled -- 2X")
+                obs.set_source_visibility("NS-Marathon", "HypeEhVent", new_value)
+                channel_document.update(hype_train_current=new_value)
+                channel_document.save()
+                print(f"Thee Hype EhVent(TRAIN_VARIABLE) is now {'EN' if new_value else 'DIS'}ABLED")
+                break
+            elif user_input == 2:
+                while True:
+                    user_input = input(f"Enter 1 to change level\nEnter 2 to reset level\n")
+                    if not user_input.isdigit():
+                        print(f"You must enter a number")
+                    else:
+                        user_input = int(user_input)
+                        if user_input == 1:
+                            new_level = input(f"Enter new level\n")
+                            if not new_level.isdigit():
+                                print(f"You must enter a number")
+                            else:
+                                new_level = int(new_level)
+                                channel_document.update(hype_train_current_level=new_level)
+                                channel_document.save()
+                                print(f"Level has been set @ {new_level}")
+                                if new_level > 1:
+                                    mult = (new_level - 1) / 10 + standard_ehvent_mult
+                                else:
+                                    mult = standard_ehvent_mult
+                                obs.set_text("HypeEhVent", f"Hype EhVent Enabled -- {mult:.1f}X")
+                                break
+                        elif user_input == 2:
+                            new_level = 1
+                            channel_document.update(hype_train_current_level=new_level)
+                            channel_document.save()
+                            print(f"Level has been reset")
+                            obs.set_text("HypeEhVent", f"Hype EhVent Enabled -- {standard_ehvent_mult}X")
+                            break
+
+
 def reset_pause():
     while True:
         user_input = input(f"Enter 1 to change current pause\nEnter 2 to reset current pause\nEnter 0 to go back\n")

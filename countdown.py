@@ -10,11 +10,15 @@ logger_list = []
 
 
 def countdown(total_seconds: float):
+    pause = float(read_pause())
     start_time = time.monotonic()
     while total_seconds >= 1.0:
         try:
-            total_seconds, pause = write_clock(1, obs=obs, countdown=True), float(read_pause())
-            logger.info(f"{str(datetime.timedelta(seconds=round(total_seconds))).title()} {total_seconds} {pause} -- {datetime.datetime.now().strftime('%H:%M:%S')}")
+            if float(read_pause()) != pause:
+                start_time = time.monotonic()  # Thinking this will eventually lose time butt I don't know for sure, it seems really on point still... Tis seem still accurate to thee 1,000,000,000,000,000 decimal point...
+                pause = float(read_pause())
+            total_seconds = write_clock(1, obs=obs, countdown=True)
+            logger.info(f"{total_seconds} -- {str(datetime.timedelta(seconds=round(total_seconds))).title()} -- {datetime.datetime.now().strftime('%H:%M:%S')} -- {pause} -- {pause - ((time.monotonic() - start_time) % pause)}")
             time.sleep(pause - ((time.monotonic() - start_time) % pause))
         except KeyboardInterrupt:
             break
