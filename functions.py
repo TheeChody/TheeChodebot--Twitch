@@ -20,7 +20,7 @@ else:
     application_path = os.path.dirname(__file__)
 
 standard_ehvent_mult = 2
-standard_seconds = 1.0  # Base value -- For marathon related events
+standard_seconds = 1.5  # Base value -- For marathon related events
 # countdown_path = f"{Path(__file__).parent.absolute()}\\"
 data_directory = f"{application_path}\\data\\"
 logs_directory = f"{application_path}\\logs\\"
@@ -210,7 +210,7 @@ def configure_hype_ehvent(channel_document: Document, obs: WebsocketsManager):
                             break
 
 
-def reset_pause():
+def reset_pause(obs: WebsocketsManager = None):
     while True:
         user_input = input(f"Enter 1 to change current pause\nEnter 2 to reset current pause\nEnter 0 to go back\n")
         if not user_input.isdigit():
@@ -224,9 +224,15 @@ def reset_pause():
                 while True:
                     new_pause_time = input("Enter new speed in SECONDS\n")
                     if new_pause_time.isdigit():
+                        new_pause_time = float(new_pause_time)
                         with open(clock_pause, "w") as file:
-                            file.write(new_pause_time)
+                            file.write(str(new_pause_time))
                         print(f"New pause time set @ {new_pause_time}")
+                        if obs is not None:
+                            if new_pause_time == 2.0:
+                                obs.set_source_visibility("NS-Marathon", "TimerSpeed", True)
+                            else:
+                                obs.set_source_visibility("NS-Marathon", "TimerSpeed", False)
                         break
                     else:
                         print(f"Invalid Input -- You put {new_pause_time} -- which is a {type(new_pause_time)}")
@@ -234,6 +240,8 @@ def reset_pause():
                 with open(clock_pause, "w") as file:
                     file.write(clock_reset_pause)
                     print(f"Pause Time Reset to {clock_reset_pause}")
+                    if obs is not None:
+                        obs.set_source_visibility("NS-Marathon", "TimerSpeed", False)
             else:
                 print(f"You must enter a number, you put {user_input} which is a {type(user_input)}")
 
@@ -484,8 +492,8 @@ def write_clock(seconds: float, add: bool = False, channel_document: Document = 
                 seconds_to_subtract = abs(total_seconds - max_seconds)
                 seconds -= seconds_to_subtract
                 total_seconds -= seconds_to_subtract
-                formatted_missed_seconds = str(datetime.timedelta(seconds=round(seconds_to_subtract))).title()
-                print(f"Went above MAX TIME -- {formatted_missed_seconds} ({seconds_to_subtract}--{round(seconds_to_subtract)}) will NOT be added")
+                formatted_missed_seconds = str(datetime.timedelta(seconds=int(seconds_to_subtract))).title()
+                print(f"Went above MAX TIME -- {formatted_missed_seconds} ({seconds_to_subtract}--{int(seconds_to_subtract)}) will NOT be added")
             current_seconds += seconds
             with open(clock, "w") as file:
                 file.write(str(current_seconds))
@@ -501,7 +509,8 @@ def write_clock(seconds: float, add: bool = False, channel_document: Document = 
             if countdown:
                 write_sofar(seconds, obs)
         if obs is not None:
-            obs.set_text("TwitchTimer", str(datetime.timedelta(seconds=round(current_seconds))).title())
+            # obs.set_text("TwitchTimer", str(datetime.timedelta(seconds=round(current_seconds))).title())
+            obs.set_text("TwitchTimer", str(datetime.timedelta(seconds=int(current_seconds))).title())
         if countdown:
             return current_seconds
         else:
@@ -512,7 +521,7 @@ def write_clock(seconds: float, add: bool = False, channel_document: Document = 
                 old_time = read.read()
             with open(clock, "w") as file:
                 file.write(clock_reset_time)
-            print(f"Overwrote to prevent issues. old time was:: {old_time}({datetime.timedelta(seconds=round(float(old_time)))})")
+            print(f"Overwrote to prevent issues. old time was:: {old_time}({datetime.timedelta(seconds=int(float(old_time)))})")
             return None, None
     except Exception as e:
         print(f"Something else went wrong -- {e}")
