@@ -1,7 +1,7 @@
 from mongoengine import Document, BooleanField, IntField, DynamicField, ListField, DateTimeField, FloatField
 
 
-class Channels(Document):
+class Channels(Document):  # Fucking shits
     user_id = IntField(primary_key=True)
     user_name = DynamicField(default="")
     user_login = DynamicField(default="")

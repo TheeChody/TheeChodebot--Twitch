@@ -15,7 +15,7 @@ def countdown(total_seconds: float):
     while total_seconds >= 1.0:
         try:
             if float(read_pause()) != pause:
-                start_time = time.monotonic()  # Thinking this will eventually lose time butt I don't know for sure, it seems really on point still... Tis seem still accurate to thee 1,000,000,000,000,000 decimal point...
+                start_time = time.monotonic()  # Thinking this will eventually lose time butt I don't know for sure, it seems really on point still. Tis seem still accurate to thee 1,000,000,000,000,000 decimal point.
                 pause = float(read_pause())
             total_seconds = write_clock(1, obs=obs, countdown=True)
             logger.info(f"{total_seconds} -- {str(datetime.timedelta(seconds=int(total_seconds))).title()} -- {datetime.datetime.now().strftime('%H:%M:%S')} -- {pause} -- {pause - ((time.monotonic() - start_time) % pause)}")

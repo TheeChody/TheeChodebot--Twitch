@@ -64,7 +64,8 @@ id_streamloots = "451658633"
 fish_rewards = [['TestOBJ1', 5],
                 ['TestOBJ2', 10],
                 ['TestOBJ3', 15],
-                ['TestOBJ4', 20]]
+                ['TestOBJ4', 20],
+                ['TestOBJ5', 25]]
 pants_choices = ["Commando",
                  "flexing a Loin Cloth",
                  "wearing Boxers"]

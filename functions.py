@@ -501,7 +501,7 @@ def write_clock(seconds: float, add: bool = False, channel_document: Document = 
                 with open(clock_total, "w") as file:
                     file.write(str(total_seconds))
         elif not add:
-            if seconds >= current_seconds != 1:  # This SHOULD Work to Counter Timer Going Below 0 or minus seconds haha
+            if seconds >= current_seconds != 1:  # This SHOULD Work to Counter Timer Going Below 0 or minus seconds haha.
                 seconds = current_seconds - 1
             current_seconds -= seconds
             with open(clock, "w") as file:
