@@ -51,8 +51,8 @@ class Users(Document):
     user_discord_id = IntField(default=0)
     user_name = DynamicField(default="")
     user_login = DynamicField(default="")
-    user_level = IntField(default=1)  # FOR NEW LEVELING SYSTEM TO BE DONE
-    user_xp_points = FloatField(default=0)  # FOR NEW LEVELING SYSTEM TO BE DONE
+    user_level = IntField(default=1)
+    user_xp_points = FloatField(default=0)
     user_points = IntField(default=0)
     user_pp = ListField(default=[None, None, ""])
     first_chat_date = DateTimeField(default=None)

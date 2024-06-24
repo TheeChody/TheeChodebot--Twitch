@@ -18,11 +18,11 @@ def countdown(total_seconds: float):
                 start_time = time.monotonic()  # Thinking this will eventually lose time butt I don't know for sure, it seems really on point still... Tis seem still accurate to thee 1,000,000,000,000,000 decimal point...
                 pause = float(read_pause())
             total_seconds = write_clock(1, obs=obs, countdown=True)
-            logger.info(f"{total_seconds} -- {str(datetime.timedelta(seconds=round(total_seconds))).title()} -- {datetime.datetime.now().strftime('%H:%M:%S')} -- {pause} -- {pause - ((time.monotonic() - start_time) % pause)}")
+            logger.info(f"{total_seconds} -- {str(datetime.timedelta(seconds=int(total_seconds))).title()} -- {datetime.datetime.now().strftime('%H:%M:%S')} -- {pause} -- {pause - ((time.monotonic() - start_time) % pause)}")
             time.sleep(pause - ((time.monotonic() - start_time) % pause))
         except KeyboardInterrupt:
             break
-    logger.info(f"{str(datetime.timedelta(seconds=round(float(read_clock())))).title()} {total_seconds} TESTING STUFFS")
+    logger.info(f"{str(datetime.timedelta(seconds=int(float(read_clock())))).title()} {total_seconds} TESTING STUFFS")
     if total_seconds <= 0:
         logger.info("Thee countdown has reached zero seconds! Writing Reset Time!")
         with open(clock, "w") as file:
@@ -49,13 +49,6 @@ if __name__ == "__main__":
     init_time = fortime().replace(' ', '--').replace(':', '-')
     logger = setup_logger('countdown_logger', f'{init_time}-countdown_log.log', logger_list)
     try:
-        obs = WebsocketsManager()
-        obs.connect()
-        logger.info(f"OBS Connection Established")
-    except Exception as e:
-        logger.error(f"Error establishing OBS connection -- {e}")
-        exit()
-    try:
         if not os.path.exists(clock):
             with open(clock, "w") as file:
                 file.write(clock_reset_time)
@@ -81,7 +74,7 @@ if __name__ == "__main__":
                     max_seconds = float(max_seconds)
                     with open(clock_max, "w") as file:
                         file.write(str(max_seconds))
-                    print(f"Max time set successfully as {str(datetime.timedelta(seconds=round(max_seconds))).title()} - {max_seconds}")
+                    print(f"Max time set successfully as {str(datetime.timedelta(seconds=int(max_seconds))).title()} - {max_seconds}")
                     break
         else:
             if float(max_read_clock()) == 0.0:
@@ -93,10 +86,17 @@ if __name__ == "__main__":
                         max_seconds = float(max_seconds)
                         with open(clock_max, "w") as file:
                             file.write(str(max_seconds))
-                        print(f"Max time set successfully as {str(datetime.timedelta(seconds=round(max_seconds))).title()} - {max_seconds}")
+                        print(f"Max time set successfully as {str(datetime.timedelta(seconds=int(max_seconds))).title()} - {max_seconds}")
     except Exception as e:
         logger.error(f"Error in data check -- {e}")
         quit()
+    try:
+        obs = WebsocketsManager()
+        obs.connect()
+        logger.info(f"OBS Connection Established")
+    except Exception as e:
+        logger.error(f"Error establishing OBS connection -- {e}")
+        exit()
     while True:
         try:
             user_input = input(f"Enter 1 to enter countdown\nEnter 2 to configure countdown\nEnter 0 to quit countdown\n")
@@ -106,7 +106,6 @@ if __name__ == "__main__":
                     print(f"Exiting countdown")
                     break
                 elif user_input == 1:
-
                     while True:
                         user_seconds, add = loop_get_user_input_clock()
                         try:
@@ -114,7 +113,7 @@ if __name__ == "__main__":
                                 write_clock(float(user_seconds), add, obs=obs, manual=True)
                                 input("Hit ENTER To Start Thee Timer!\n")
                                 total_seconds = float(read_clock())
-                                logger.info(f"{str(datetime.timedelta(seconds=round(total_seconds))).title()} {total_seconds}")  # DEBUGGING -- ++ 2 lines above -- otherwise countdown(float(read_clock()))
+                                logger.info(f"{str(datetime.timedelta(seconds=int(total_seconds))).title()} {total_seconds}")  # DEBUGGING -- ++ 2 lines above -- otherwise countdown(float(read_clock()))
                                 countdown(total_seconds)
                                 # countdown(float(read_clock()))  # For Run
                             else:
