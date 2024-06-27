@@ -21,7 +21,6 @@ else:
 
 standard_ehvent_mult = 2
 standard_seconds = 1.5  # Base value -- For marathon related events
-# countdown_path = f"{Path(__file__).parent.absolute()}\\"
 data_directory = f"{application_path}\\data\\"
 logs_directory = f"{application_path}\\logs\\"
 chat_log = f"{logs_directory}chat_log.log"
@@ -30,14 +29,11 @@ clock_sofar = f"{data_directory}clock_sofar.txt"
 clock_total = f"{data_directory}clock_total_time.txt"
 clock_max = f"{data_directory}clock_max_time.txt"
 clock_pause = f"{data_directory}clock_pause.txt"
-clock_reset_pause = "1"
-# clock_reset_time = "0:00:00"
+clock_reset_pause = "1.0"
 clock_reset_time = "0.0"
 Path(data_directory).mkdir(parents=True, exist_ok=True)
 Path(logs_directory).mkdir(parents=True, exist_ok=True)
 long_dashes = "-------------------------------------------------"
-
-# print(f"App -- {application_path} --- path__file__ -- {countdown_path}")  # ToDo: Figure out if I want to use Path(__file__) as thee determining app_path...
 
 
 class WebsocketsManager:
@@ -49,9 +45,11 @@ class WebsocketsManager:
     def connect(self):
         try:
             self.ws.connect()
+            return True
         except Exception as e:
             print(f"Error connecting to OBS -- {e}")
-            quit()
+            return False
+            # quit()
 
     def disconnect(self):
         self.ws.disconnect()
@@ -77,8 +75,10 @@ class WebsocketsManager:
 
     def get_source_transform(self, scene_name, source_name):
         response = self.ws.call(requests.GetSceneItemId(sceneName=scene_name, sourceName=source_name))
+        print(response)
         item_id = response.datain['sceneItemId']
         response = self.ws.call(requests.GetSceneItemTransform(sceneName=scene_name, sceneItemId=item_id))
+        print(response)
         transform = {"positionX": response.datain["sceneItemTransform"]["positionX"],
                      "positionY": response.datain["sceneItemTransform"]["positionY"],
                      "scaleX": response.datain["sceneItemTransform"]["scaleX"],
@@ -137,6 +137,17 @@ def setup_logger(name: str, log_file: str, logger_list: list, level: logging = l
         formatted_time = fortime()
         print(f"{formatted_time}: ERROR in setup_logger - {name}/{log_file}/{level} -- {e}")
         return None
+
+
+def full_shutdown(logger_list):
+    logging.shutdown()
+    for entry in logger_list:
+        try:
+            os.rename(f"{logs_directory}{entry}", f"{logs_directory}\\archive_log\\{entry}")
+        except Exception as e:
+            print(e)
+            pass
+    quit(420)
 
 
 def configure_write_to_clock(channel_document: Document, obs: WebsocketsManager):
@@ -199,7 +210,7 @@ def configure_hype_ehvent(channel_document: Document, obs: WebsocketsManager):
                                     mult = (new_level - 1) / 10 + standard_ehvent_mult
                                 else:
                                     mult = standard_ehvent_mult
-                                obs.set_text("HypeEhVent", f"Hype EhVent Enabled -- {mult: .1f}X")
+                                obs.set_text("HypeEhVent", f"Hype EhVent Enabled -- {mult:.1f}X")
                                 break
                         elif user_input == 2:
                             new_level = 1
@@ -506,12 +517,13 @@ def write_clock(seconds: float, add: bool = False, channel_document: Document = 
             current_seconds -= seconds
             with open(clock, "w") as file:
                 file.write(str(current_seconds))
-            if countdown:
-                write_sofar(seconds, obs)
+        else:
+            print(f"SOMETHING WRONG... ADD VALUE == {add}")
+            return None, None
         if obs is not None:
-            # obs.set_text("TwitchTimer", str(datetime.timedelta(seconds=round(current_seconds))).title())
             obs.set_text("TwitchTimer", str(datetime.timedelta(seconds=int(current_seconds))).title())
         if countdown:
+            write_sofar(seconds, obs)
             return current_seconds
         else:
             return seconds, formatted_missed_seconds

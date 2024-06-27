@@ -31,9 +31,10 @@ def countdown(total_seconds: float):
         shutdown()
 
 
-def shutdown():
-    obs.disconnect()
-    logger.info(f"Disconnected from OBS")
+def shutdown(obs_connected: bool = True):
+    if obs_connected:
+        obs.disconnect()
+        logger.info(f"Disconnected from OBS")
     logging.shutdown()
     for entry in logger_list:
         try:
@@ -92,7 +93,10 @@ if __name__ == "__main__":
         quit()
     try:
         obs = WebsocketsManager()
-        obs.connect()
+        connected = obs.connect()
+        if not connected:
+            logger.error(f"OBS Connection NOT Established")
+            shutdown(False)
         logger.info(f"OBS Connection Established")
     except Exception as e:
         logger.error(f"Error establishing OBS connection -- {e}")
