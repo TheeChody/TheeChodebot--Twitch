@@ -1,6 +1,6 @@
 """
 ---channel_doc---
---data_cmd--
+--data_games--
 ats: Tractor/Game Crash
 cod: Total/Wins/Lost/Crash
 stream: Total
@@ -27,17 +27,18 @@ class Channels(Document):
                                          "game_name": "",
                                          "content_class": [],
                                          "tags": []})
-    channel_data = DictField(default={"followers": ["774737491", "192918528"],
-                                      "hype_train": {"last": None,
-                                                     "current": False,
+    data_channel = DictField(default={"followers": ["774737491", "192918528"],
+                                      "hype_train": {"current": False,
                                                      "current_level": 1,
+                                                     "last": None,
                                                      "last_level": 2,
                                                      "record_level": 2},
                                       "writing_clock": False})
-    data_cmd = DictField(default={"ats": [0, 0],
-                                  "cod": [0, 0, 0, 0],
-                                  "stream": 0,
-                                  "tag": [None, None, None]})
+    data_games = DictField(default={"ats": [0, 0],
+                                    "cod": [0, 0, 0, 0],
+                                    "ranword": "",
+                                    "stream": 0,
+                                    "tag": [None, None, None]})
     data_lists = DictField(default={"ignore": ["431026547", "52268235", "253326823", "100135110", "431199284", "216527497", "451658633", "656479529"],
                                     "lurk": ["848563434", "882825189", "99161823", "669781726"],
                                     "mods": ["542995008", "659673020", "800907099", "451658633", "842545503", "1023291886", "563919062"],

@@ -151,19 +151,19 @@ def full_shutdown(logger_list):
 
 
 def configure_write_to_clock(channel_document: Document, obs: WebsocketsManager):
-    if channel_document['channel_data']['writing_clock']:
+    if channel_document['data_channel']['writing_clock']:
         new_value = False
     else:
         new_value = True
-    channel_document['channel_data'].update(writing_clock=new_value)
+    channel_document['data_channel'].update(writing_clock=new_value)
     channel_document.save()
     obs.set_source_visibility("NS-Marathon", "TwitchTimer", new_value)
     # try:  # ToDo: FIGURE OUT WHY THIS TELLS ME REWARD ID IS FOR ANOTHER CHANNEL OR MY CHANNEL DOESN'T HAVE REWARDS ENABLED.....
     #     for reward_id in marathon_rewards:
-    #         await bot.update_custom_reward(id_streamer, reward_id, is_enabled=channel_document['channel_data']['writing_clock'])
-    #         special_logger.info(f"{reward_id} is now {'EN' if channel_document['channel_data']['writing_clock'] else 'DIS'}ABLED")
+    #         await bot.update_custom_reward(id_streamer, reward_id, is_enabled=channel_document['data_channel']['writing_clock'])
+    #         special_logger.info(f"{reward_id} is now {'EN' if channel_document['data_channel']['writing_clock'] else 'DIS'}ABLED")
     # except Exception as f:
-    #     logger.error(f"Error switching rewards on/off for channel_document['channel_data']['writing_clock'] -- bot loop -- {f}")
+    #     logger.error(f"Error switching rewards on/off for channel_document['data_channel']['writing_clock'] -- bot loop -- {f}")
     #     pass
     print(f"Writing to clock is now {'EN' if new_value else 'DIS'}ABLED")
 
@@ -180,13 +180,13 @@ def configure_hype_ehvent(channel_document: Document, obs: WebsocketsManager):
                 print(f"Going Back")
                 break
             elif user_input == 1:
-                if channel_document['channel_data']['hype_train']['current']:
+                if channel_document['data_channel']['hype_train']['current']:
                     new_value = False
                 else:
                     new_value = True
                 obs.set_text("HypeEhVent", f"Hype EhVent {'En' if new_value else 'Dis'}abled -- 2X")
                 obs.set_source_visibility("NS-Marathon", "HypeEhVent", new_value)
-                channel_document['channel_data']['hype_train'].update(current=new_value)
+                channel_document['data_channel']['hype_train'].update(current=new_value)
                 channel_document.save()
                 print(f"Thee Hype EhVent(TRAIN_VARIABLE) is now {'EN' if new_value else 'DIS'}ABLED")
                 break
@@ -203,7 +203,7 @@ def configure_hype_ehvent(channel_document: Document, obs: WebsocketsManager):
                                 print(f"You must enter a number")
                             else:
                                 new_level = int(new_level)
-                                channel_document['channel_data']['hype_train'].update(current_level=new_level)
+                                channel_document['data_channel']['hype_train'].update(current_level=new_level)
                                 channel_document.save()
                                 print(f"Level has been set @ {new_level}")
                                 if new_level > 1:
@@ -214,7 +214,7 @@ def configure_hype_ehvent(channel_document: Document, obs: WebsocketsManager):
                                 break
                         elif user_input == 2:
                             new_level = 1
-                            channel_document['channel_data']['hype_train'].update(current_level=new_level)
+                            channel_document['data_channel']['hype_train'].update(current_level=new_level)
                             channel_document.save()
                             print(f"Level has been reset")
                             obs.set_text("HypeEhVent", f"Hype EhVent Enabled -- {standard_ehvent_mult}X")
@@ -493,9 +493,9 @@ def write_clock(seconds: float, add: bool = False, channel_document: Document = 
             max_seconds = float(max_read_clock())
             total_seconds = float(total_read_clock())
             if channel_document is not None:
-                if channel_document['channel_data']['hype_train']['current']:
-                    if channel_document['channel_data']['hype_train']['current_level'] > 1:
-                        seconds *= ((channel_document['channel_data']['hype_train']['current_level'] - 1) / 10 + standard_ehvent_mult)
+                if channel_document['data_channel']['hype_train']['current']:
+                    if channel_document['data_channel']['hype_train']['current_level'] > 1:
+                        seconds *= ((channel_document['data_channel']['hype_train']['current_level'] - 1) / 10 + standard_ehvent_mult)
                     else:
                         seconds *= standard_ehvent_mult
             total_seconds += seconds
