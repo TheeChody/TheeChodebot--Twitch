@@ -1,34 +1,48 @@
-from mongoengine import Document, BooleanField, IntField, DynamicField, ListField, DateTimeField, FloatField
+"""
+---channel_doc---
+--data_cmd--
+ats: Tractor/Game Crash
+cod: Total/Wins/Lost/Crash
+stream: Total
+Tag: user_id, user_name, time tagged
+
+---user_doc---
+--user_data--
+-cmd-
+tag: Total/Good/Fail
+pp: Size/LastDone/History
+"""
+from mongoengine import Document, IntField, DynamicField, DateTimeField, DictField
 
 
 class Channels(Document):
     user_id = IntField(primary_key=True)
     user_name = DynamicField(default="")
     user_login = DynamicField(default="")
-    channel_online = BooleanField(default=False)
-    channel_online_last = DateTimeField(default=None)
-    channel_title = DynamicField(default="")
-    channel_game_id = DynamicField(default=0)
-    channel_game_name = DynamicField(default="")
-    channel_content_class = ListField(default=[])
-    channel_tags = ListField(default=[])
-    channel_branded = BooleanField(default=False)
-    channel_followers_list = ListField(default=["774737491", "192918528"])
-    hype_train_last = DynamicField(default=None)
-    hype_train_current = BooleanField(default=False)
-    hype_train_current_level = IntField(default=1)
-    hype_train_last_level = IntField(default=2)
-    hype_train_record_level = IntField(default=2)
-    writing_to_clock = BooleanField(default=False)
-    cmd_counter_list_ats = ListField(default=[0, 0])  # TractorCrash, GameCrash
-    cmd_counter_list_cod = ListField(default=[0, 0, 0, 0])  # Total, Win, Lost, Crash
-    cmd_counter_stream_crash = IntField(default=0)
-    cmd_tag_last_it = ListField(default=[None, None, None])  # ID, NAME, TIME
-    mod_list = ListField(default=["542995008", "659673020", "800907099", "451658633", "842545503", "1023291886", "563919062"])
-    ignore_list = ListField(default=["431026547", "52268235", "253326823", "100135110", "431199284", "216527497", "451658633", "656479529"])
-    spam_list = ListField(default=[])
-    lurk_list = ListField(default=["848563434", "882825189", "99161823", "669781726"])
-    non_tag_list = ListField(default=["777768639", "186953777", "1023291886", "881267248", "806552159", "121590725", "758228900", "268136120", "170147951"])
+    channel_details = DictField(default={"online": False,
+                                         "online_last": None,
+                                         "branded": False,
+                                         "title": "",
+                                         "game_id": "",
+                                         "game_name": "",
+                                         "content_class": [],
+                                         "tags": []})
+    channel_data = DictField(default={"followers": ["774737491", "192918528"],
+                                      "hype_train": {"last": None,
+                                                     "current": False,
+                                                     "current_level": 1,
+                                                     "last_level": 2,
+                                                     "record_level": 2},
+                                      "writing_clock": False})
+    data_cmd = DictField(default={"ats": [0, 0],
+                                  "cod": [0, 0, 0, 0],
+                                  "stream": 0,
+                                  "tag": [None, None, None]})
+    data_lists = DictField(default={"ignore": ["431026547", "52268235", "253326823", "100135110", "431199284", "216527497", "451658633", "656479529"],
+                                    "lurk": ["848563434", "882825189", "99161823", "669781726"],
+                                    "mods": ["542995008", "659673020", "800907099", "451658633", "842545503", "1023291886", "563919062"],
+                                    "non_tag": ["777768639", "186953777", "1023291886", "881267248", "806552159", "121590725", "758228900", "268136120", "170147951"],
+                                    "spam": []})
     meta = {"db_alias": "default"}
 
 
@@ -56,10 +70,11 @@ class Users(Document):
     user_discord_id = IntField(default=0)
     user_name = DynamicField(default="")
     user_login = DynamicField(default="")
-    user_level = IntField(default=1)
-    user_xp_points = FloatField(default=0)
-    user_points = IntField(default=0)
-    user_pp = ListField(default=[None, None, ""])
-    first_chat_date = DateTimeField(default=None)
-    latest_chat_date = DateTimeField(default=None)
+    user_data = DictField(default={"level": 1,
+                                   "xp": 0.0,
+                                   "points": 0.0,
+                                   "cmd": {"tag": [0, 0, 0],
+                                           "pp": [None, None, []]},
+                                   "first_chat": None,
+                                   "latest_chat": None})
     meta = {"db_alias": "default"}
