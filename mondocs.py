@@ -3,16 +3,17 @@
 --data_games--
 ats: Tractor/Game Crash
 cod: Total/Wins/Lost/Crash
+ranword: Random_Word
 stream: Total
-Tag: user_id, user_name, time tagged
+tag: user_id, user_name, time tagged
 
 ---user_doc---
---user_data--
--cmd-
+--data_games--
+fish: InProcessFish
 tag: Total/Good/Fail
 pp: Size/LastDone/History
 """
-from mongoengine import Document, IntField, DynamicField, DateTimeField, DictField
+from mongoengine import Document, IntField, DynamicField, DateTimeField, DictField, StringField
 
 
 class Channels(Document):
@@ -33,7 +34,7 @@ class Channels(Document):
                                                      "last": None,
                                                      "last_level": 2,
                                                      "record_level": 2},
-                                      "writing_clock": False})
+                                      "writing_clock": True})
     data_games = DictField(default={"ats": [0, 0],
                                     "cod": [0, 0, 0, 0],
                                     "ranword": "",
@@ -62,20 +63,26 @@ class EconomyData(Document):
     highest_gambling_lost = DynamicField(default=0)
     total_gambling_won = DynamicField(default=0)
     total_gambling_lost = DynamicField(default=0)
-    twitch_id = DynamicField(default=0)
+    twitch_id = DynamicField(default=[])
     meta = {"db_alias": "Discord_Database"}
 
 
 class Users(Document):
-    user_id = IntField(primary_key=True)
-    user_discord_id = IntField(default=0)
-    user_name = DynamicField(default="")
-    user_login = DynamicField(default="")
-    user_data = DictField(default={"level": 1,
-                                   "xp": 0.0,
+    _id = StringField(primary_key=True)  # This will be 'chatter_id-first 5 characters of broadcaster_id'
+    name = StringField(default="")
+    data_games = DictField(default={"fish": False,
+                                    "tag": [0, 0, 0],
+                                    "pp": [None, None, []]})
+    data_rank = DictField(default={"boost": 0.0,
+                                   "level": 1,
+                                   "xp": 0.0})
+    data_user = DictField(default={"id": "",
+                                   "login": "",
+                                   "discord_id": "",
                                    "points": 0.0,
-                                   "cmd": {"tag": [0, 0, 0],
-                                           "pp": [None, None, []]},
-                                   "first_chat": None,
-                                   "latest_chat": None})
+                                   "dates": {"first_chat": None,
+                                             "latest_chat": None,
+                                             "checkin_streak": [0, None]},
+                                   "channel": {"id": "",
+                                               "name": ""}})
     meta = {"db_alias": "default"}
