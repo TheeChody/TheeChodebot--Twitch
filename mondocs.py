@@ -45,7 +45,6 @@ class Channels(Document):
                                     "mods": ["542995008", "659673020", "800907099", "451658633", "842545503", "1023291886", "563919062"],
                                     "non_tag": ["777768639", "186953777", "1023291886", "881267248", "806552159", "121590725", "758228900", "268136120", "170147951"],
                                     "spam": []})
-    meta = {"db_alias": "default"}
 
 
 class EconomyData(Document):
@@ -85,4 +84,3 @@ class Users(Document):
                                              "checkin_streak": [0, None]},
                                    "channel": {"id": "",
                                                "name": ""}})
-    meta = {"db_alias": "default"}

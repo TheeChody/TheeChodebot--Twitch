@@ -457,13 +457,14 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 try:
                     if chatter_document['data_games']['fish']:
                         await bot.send_chat_message(id_streamer, id_streamer, f"You have already cast your line, wait a few", reply_parent_message_id=data.event.message_id)
+                        return
                     chatter_document['data_games'].update(fish=True)
                     chatter_document.save()
                     chatter_document = await get_chatter_document(data)
                     await asyncio.sleep(random.randint(5, 90))
                     fish = random.choice(fish_rewards)
                     chatter_document, response_level = await twitch_points_transfer(chatter_document, channel_document, fish[1])
-                    await bot.send_chat_message(id_streamer, id_streamer, f"You caught a {fish[0]} worth {fish[1]} points! Your new points are: {chatter_document['data_user']['points']:,}", reply_parent_message_id=data.event.message_id)
+                    await bot.send_chat_message(id_streamer, id_streamer, f"You caught a {fish[0]} worth {fish[1]} points! Your new points are: {chatter_document['data_user']['points']:,}{f' {response_level}' if response_level is not None else ''}", reply_parent_message_id=data.event.message_id)
                     chatter_document['data_games'].update(fish=False)
                     chatter_document.save()
                 except Exception as f:
@@ -600,12 +601,12 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                         await bot.send_chat_message(id_streamer, id_streamer, f"Your tag stats are (Total/Valid/Fail): {chatter_document['data_games']['tag'][0]}/{chatter_document['data_games']['tag'][1]}/{chatter_document['data_games']['tag'][2]}", reply_parent_message_id=data.event.message_id)
                         end_timer("tag history command")
                         return
-                    rem_response, response_level = None, None
+                    rem_response, target_rem_response, response_level = None, None, None
                     if chatter_id in channel_document['data_lists']['non_tag']:
                         channel_document['data_lists']['non_tag'].remove(chatter_id)
                         channel_document.save()
                         channel_document = await get_channel_document(data.event.broadcaster_user_id, data.event.broadcaster_user_name, data.event.broadcaster_user_login)
-                        rem_response = f"You have been removed from untag list"
+                        rem_response = f"You have been removed from thee untag list"
                     if channel_document['data_games']['tag'][0] is None:
                         last_tag_id, last_tag_name, time_since_tagged = chatter_id, chatter_username, datetime.datetime.now()
                     else:
@@ -620,17 +621,18 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                             if target is None:
                                 channel_document['data_games'].update(tag=[None, None, None])
                                 channel_document.save()
+                                await bot.send_chat_message(id_streamer, id_streamer, f"Error fetching a random tag target.. Are we thee only ones here??{f' {rem_response}.' if rem_response is not None else ''}{f' {target_rem_response}.' if target_rem_response is not None else ''}")
                                 end_timer("tag command")
                                 return
                             elif chatter_id != last_tag_id:
                                 if last_tag_id not in channel_document['data_lists']['non_tag']:
-                                    prior_target_chatter_doc = Users.objects.get(_id=int(last_tag_id))
+                                    prior_target_chatter_doc = Users.objects.get(_id=f"{last_tag_id}-{id_streamer[:5]}")
                                     channel_document['data_lists']['non_tag'].append(last_tag_id)
                                     channel_document['data_games'].update(tag=[None, None, None])
                                     channel_document.save()
                                     channel_document = await get_channel_document(data.event.broadcaster_user_id, data.event.broadcaster_user_name, data.event.broadcaster_user_login)
                                     last_tag_id = None
-                                    await bot.send_chat_message(id_streamer, id_streamer, f"{prior_target_chatter_doc['user_name']} has been added to untag list and lost 5 XP")
+                                    target_rem_response = f"{prior_target_chatter_doc['name']} has been added to untag list and lost 5 XP"
                                     await twitch_points_transfer(prior_target_chatter_doc, channel_document, 5, False)
                                     await update_tag_stats(prior_target_chatter_doc, 1, 0, 1)
                             elif chatter_id == last_tag_id or last_tag_id is None:
@@ -639,7 +641,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                                 break
                         channel_document['data_games'].update(tag=[target.user_id, target.user_name, datetime.datetime.now()])
                         channel_document.save()
-                        await bot.send_chat_message(id_streamer, id_streamer, f"{chatter_username} tags {target.user_name}{f' {rem_response}.' if rem_response is not None else '.'}{f' {response}.' if response is not None else ''}{f' {response_level}' if response_level is not None else ''}")
+                        await bot.send_chat_message(id_streamer, id_streamer, f"{chatter_username} tags {target.user_name}{f' {rem_response}.' if rem_response is not None else '.'}{f' {target_rem_response}' if target_rem_response is not None else ''}{f' {response}.' if response is not None else ''}{f' {response_level}' if response_level is not None else ''}")
                 except Exception as f:
                     logger.error(f"{fortime()}: Error in on_stream_chat_message -- tag command -- {f}")
                     end_timer("tag command")
@@ -1167,7 +1169,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
             return
         else:
             phrase_del = False
-            response, response_ranword, response_level = None, None, None
+            response, response_ranword, response_level, old_response_level = None, None, None, None
             messagecont = data.event.message.text.replace(" ", "").lower()
             try:
                 for phrase in delete_phrases:
@@ -1184,9 +1186,9 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 logger.error(f"{fortime()}: Error in on_stream_chat_message - phrases_loop -- {f}")
                 pass
             try:
-                if channel_document['data_game']['ranword'] in messagecont:  # ToDo: Future feature full Game, add on screen hints, till then quiet about it
+                if channel_document['data_games']['ranword'] in messagecont:  # ToDo: Future feature full Game, add on screen hints, till then quiet about it
                     chatter_document, response_level = await twitch_points_transfer(chatter_document, channel_document, 1000)
-                    response_ranword = f"{chatter_username}, you used thee random word!! It was {channel_document['data_game']['ranword']}. You gained 1,000 points!"
+                    response_ranword = f"{chatter_username}, you used thee random word!! It was {channel_document['data_games']['ranword']}. You gained 1,000 points!"
                     ran_word(channel_document)
             except Exception as f:
                 logger.error(f"{fortime()}: Error in on_stream_chat_message -- ranword_bit -- {f}")
@@ -1200,7 +1202,22 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 pass
             try:
                 if not phrase_del:
+                    if response_level is not None:
+                        old_response_level = response_level
                     chatter_document, response_level = await twitch_points_transfer(chatter_document, channel_document, standard_points)
+                    if response_level is None:
+                        response_level = old_response_level
+                    # elif old_response_level is not None:  # ToDo: FIGURE OUT IF THIS IS EVEN NEEDED>>>
+                    #     old_v_one, old_v_two = old_response_level.split(" to ")
+                    #     _, old_v_one = old_v_one.split(" from ")
+                    #     old_v_two, _ = old_v_two.split(". ")
+                    #     cur_v_one, cur_v_two = response_level.split(" to ")
+                    #     _, cur_v_one = cur_v_one.split(" from ")
+                    #     cur_v_two, _ = cur_v_two.split(". ")
+                    #     print("one--", cur_v_one, old_v_one)
+                    #     print("two--", cur_v_two, old_v_two)
+                    #     if int(cur_v_two) < int(old_v_two) and int(cur_v_one) >= int(old_v_one):
+                    #         response_level = old_response_level
                 chat_logger.info(f"{chatter_id}/{chatter_username}: {data.event.message.text if data.event.message_type in ('text', 'power_ups_message_effect') else f'Last message was a type({data.event.message_type}) not a text type.'}")
             except Exception as f:
                 logger.error(f"{fortime()}: Error in on_stream_chat_message -- twitch_points -- {f}")
@@ -1218,7 +1235,9 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                     logger.error(f"{fortime()}: Error in on_stream_chat_message -- power_ups -- {f}")
                     end_timer("power_ups")
                     return
-        await bot.send_chat_message(id_streamer, id_streamer, f"{f'{response_ranword}.' if response_ranword is not None else ''}{f'{response}.' if response is not None else ''}{f' {response_level}.' if response_level is not None else ''}", reply_parent_message_id=data.event.message_id)
+        if response is not None or response_ranword is not None or response_level is not None:
+            print(response_level, type(response_level))
+            await bot.send_chat_message(id_streamer, id_streamer, f"{f'{response_ranword}.' if response_ranword is not None else ''}{f'{response}.' if response is not None else ''}{f' {response_level}.' if response_level is not None else ''}", reply_parent_message_id=data.event.message_id)
         end_timer("on_stream_chat_message")
     except Exception as e:
         logger.error(f"{fortime()}: Error in on_stream_chat_message -- {e}")
@@ -1944,7 +1963,8 @@ async def select_target(channel_document, chatter_id, manual_choice: bool = Fals
                 special_logger.info(f"select_target_remove {len(users.data)} {target.user_name} {target.user_id}")
                 if len(users.data) <= 1:
                     target = None
-                    await bot.send_chat_message(id_streamer, id_streamer, f"Error fetching random target... Are we thee only ones here?")
+                    if game_type != "tag":
+                        await bot.send_chat_message(id_streamer, id_streamer, f"Error fetching random target... Are we thee only ones here?")
                     special_logger.info(f"select_target_none total:{users.total} list_to_check:{len(list_to_check)} ignore_list:{len(channel_document['data_lists']['ignore'])} -- dif:{abs(users.total - len(list_to_check)) - len(channel_document['data_lists']['ignore'])} -- game_type:{game_type}")
                     break
         return target
