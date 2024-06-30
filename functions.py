@@ -1,3 +1,19 @@
+"""
+All times are considered off variables and any currency related information is assumed USD
+Set base seconds in 'standard_seconds'
+Times Below are for normal times based on a 50/50 split
+If your split is different, these numbers are not going to be accurate
+(Hype EhVent seconds/cent go up, $value goes down) (default mult == 2, up by .10 per HypeTrain Level)
+------------------------------------------------------------------------------------------------------------------------
+0.5 second per cent is   == $72.00/60 minutes for you, $144.00/60 minutes spent by viewers to keep you live
+1 second per cent is     == $36.00/60 minutes for you, $72.00/60 minutes spent by viewers to keep you live
+1.5 seconds per cent is  == $27.00/60 minutes for you, $54.00/60 minutes spent by viewers to keep you live
+2 seconds per cent is    == $18.00/60 minutes for you, $36.00/60 minutes spent by viewers to keep you live
+2.5 seconds per cent is  == $14.40/60 minutes for you, $28.80/60 minutes spent by viewers to keep you live
+3 seconds per cent is    == $12.00/60 minutes for you, $24.00/60 minutes spent by viewers to keep you live
+3.5 seconds per cent is  == $10.29/60 minutes for you, $20.58/60 minutes spent by viewers to keep you live
+------------------------------------------------------------------------------------------------------------------------
+"""
 import os
 import sys
 import datetime
