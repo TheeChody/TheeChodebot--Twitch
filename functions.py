@@ -36,8 +36,9 @@ else:
     application_path = os.path.dirname(__file__)
 
 standard_ehvent_mult = 2
-standard_seconds = 1.5  # Base value -- For marathon related events
+standard_seconds = 1.0  # Base value -- For marathon related events
 data_directory = f"{application_path}\\data\\"
+alerts = f"{data_directory}audio\\alerts\\"
 logs_directory = f"{application_path}\\logs\\"
 chat_log = f"{logs_directory}chat_log.log"
 clock = f"{data_directory}clock.txt"
@@ -91,10 +92,10 @@ class WebsocketsManager:
 
     def get_source_transform(self, scene_name, source_name):
         response = self.ws.call(requests.GetSceneItemId(sceneName=scene_name, sourceName=source_name))
-        print(response)
+        # print(response)
         item_id = response.datain['sceneItemId']
         response = self.ws.call(requests.GetSceneItemTransform(sceneName=scene_name, sceneItemId=item_id))
-        print(response)
+        # print(response)
         transform = {"positionX": response.datain["sceneItemTransform"]["positionX"],
                      "positionY": response.datain["sceneItemTransform"]["positionY"],
                      "scaleX": response.datain["sceneItemTransform"]["scaleX"],
@@ -118,6 +119,9 @@ class WebsocketsManager:
 
     def get_input_settings(self, input_name):
         return self.ws.call(requests.GetInputSettings(inputName=input_name))
+
+    def set_input_settings(self, input_name, new_input_setting):
+        return self.ws.call(requests.SetInputSettings(inputName=input_name, inputSettings=new_input_setting))
 
     def get_input_kind_list(self):
         return self.ws.call(requests.GetInputKindList())
