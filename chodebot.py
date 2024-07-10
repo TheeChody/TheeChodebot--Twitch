@@ -14,10 +14,10 @@ from mondocs import Channels, Users, EconomyData
 from twitchAPI.eventsub.websocket import EventSubWebsocket
 from twitchAPI.oauth import UserAuthenticationStorageHelper
 from mongoengine import connect, disconnect_all, DEFAULT_CONNECTION_NAME, Document
-from functions import clock_pause, chat_log, long_dashes, loop_get_user_input_clock, read_clock, \
+from functions import clock_pause, long_dashes, loop_get_user_input_clock, read_clock, \
     read_pause, reset_pause, reset_current_time, reset_level_const, reset_max_time, reset_total_time, sofar_read_clock, \
     write_clock, max_read_clock, total_read_clock, standard_seconds, WebsocketsManager, setup_logger, fortime, load_dotenv, \
-    configure_write_to_clock, configure_hype_ehvent, full_shutdown, alerts, logs_directory
+    configure_write_to_clock, configure_hype_ehvent, full_shutdown, logs_directory
 from twitchAPI.object.eventsub import ChannelAdBreakBeginEvent, ChannelChatMessageEvent, ChannelChatNotificationEvent, \
     ChannelCheerEvent, ChannelFollowEvent, ChannelPollBeginEvent, ChannelPollEndEvent, ChannelPointsCustomRewardRedemptionAddEvent, \
     ChannelPredictionEvent, ChannelPredictionEndEvent, ChannelRaidEvent, ChannelSubscribeEvent, ChannelSubscriptionGiftEvent, \
@@ -87,10 +87,13 @@ standard_points = 2.5  # Base value -- points for chatting, bitties, subbing/res
 standard_ehvent_mult = 2.0  # Base value -- For hype ehvent mult calculations
 command_link = "https://theechody.ca/stream-commands"
 discord_link = "http://discord.theechody.ca"  # Your discord link here
+loots_link = "http://loots.theechody.ca"
 response_thanks = "Much Love <3"  # A response message one wants to be repeated at thee end of monetary things
 channel_point_name = "Theebucks"  # Channel point name
 points_for_time = 10000
 # cmd_reset_seconds = 43200  # Might Phase This Out Completely, running trial run on pp and checkins.
+
+# ToDo: Think of Manual Hype EhVent trigger colliding with organic hype train hype ehvent -- maybe combine .value's together till end of manual event if hype train event happens same time
 
 
 class BotSetup(Twitch):
@@ -274,7 +277,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                     logger.error(f"{fortime()}: Error in on_stream_chat_message - lastcomment command -- {f}")
                     end_timer("lastcomment command")
                     return
-            elif command_check.startswith("lurk"):
+            elif command_check.startswith(("lurk", "brb")):
                 try:
                     if chatter_id not in channel_document['data_lists']['lurk'] and chatter_id != id_streamer:
                         channel_document['data_lists']['lurk'].append(chatter_id)
@@ -469,15 +472,15 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                     chatter_document.save()
                     chatter_document = await get_chatter_document(data)
                     await asyncio.sleep(random.randint(5, 90))
+                    chatter_document['data_games'].update(fish=False)
+                    chatter_document.save()
                     with open("data/fish_rewards", "r") as file:
                         fish_rewards = file.read()
                     fish_rewards = list(map(str, fish_rewards.splitlines()))
                     fish = random.choice(fish_rewards)
                     fish, value = fish.split(",")
                     chatter_document, response_level = await twitch_points_transfer(chatter_document, channel_document, float(value))
-                    await bot.send_chat_message(id_streamer, id_streamer, f"You caught {fish} worth {value} points! Your new points are: {chatter_document['data_user']['points']:,.2f}{f' {response_level}' if response_level is not None else ''}", reply_parent_message_id=data.event.message_id)
-                    chatter_document['data_games'].update(fish=False)
-                    chatter_document.save()
+                    await bot.send_chat_message(id_streamer, id_streamer, f"You caught {fish} worth {value} point{'s' if float(value) > 0 else ''}! Your new points are: {chatter_document['data_user']['points']:,.2f}{f' {response_level}' if response_level is not None else ''}", reply_parent_message_id=data.event.message_id)
                 except Exception as f:
                     logger.error(f"{fortime()}: Error in on_stream_chat_message -- fish command -- {f}")
                     end_timer("fish command")
@@ -635,20 +638,20 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                                 await bot.send_chat_message(id_streamer, id_streamer, f"Error fetching a random tag target.. Are we thee only ones here??{f' {rem_response}.' if rem_response is not None else ''}{f' {target_rem_response}.' if target_rem_response is not None else ''}")
                                 end_timer("tag command")
                                 return
-                            elif chatter_id != last_tag_id:
+                            elif chatter_id != last_tag_id and last_tag_id != "":
                                 if last_tag_id not in channel_document['data_lists']['non_tag']:
                                     prior_target_chatter_doc = Users.objects.get(_id=f"{last_tag_id}-{id_streamer[:5]}")
                                     channel_document['data_lists']['non_tag'].append(last_tag_id)
                                     channel_document['data_games'].update(tag=[None, None, None])
                                     channel_document.save()
                                     channel_document = await get_channel_document(data.event.broadcaster_user_id, data.event.broadcaster_user_name, data.event.broadcaster_user_login)
-                                    last_tag_id = None
-                                    target_rem_response = f"{prior_target_chatter_doc['name']} has been added to untag list and lost 5 XP"
-                                    await twitch_points_transfer(prior_target_chatter_doc, channel_document, 5, False)
+                                    last_tag_id = ""
+                                    target_rem_response = f"{prior_target_chatter_doc['name']} has been added to untag list"  #" and lost 5 XP"
+                                    # await twitch_points_transfer(prior_target_chatter_doc, channel_document, 0, False)
                                     await update_tag_stats(prior_target_chatter_doc, 1, 0, 1)
-                            elif chatter_id == last_tag_id or last_tag_id is None:
+                            elif chatter_id == last_tag_id or last_tag_id == "":
                                 chatter_document, response_level = await twitch_points_transfer(chatter_document, channel_document, 2.5)
-                                response_tag = await update_tag_stats(chatter_document, 1, 1, 0)
+                                chatter_document, response_tag = await update_tag_stats(chatter_document, 1, 1, 0)
                                 break
                         channel_document['data_games'].update(tag=[target.user_id, target.user_name, datetime.datetime.now()])
                         channel_document.save()
@@ -773,8 +776,8 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                         if total == 0:
                             last_smoked_nice = channel_document['data_games']['joints'][1].strftime('%H:%M:%S')
                         else:
-                            last_smoked_nice = last_smoked.strftime('%H:%M:%S')
-                    await bot.send_chat_message(id_streamer, id_streamer, f"{response_joints_day_reset if response_joints_day_reset is not None else ''} Joints Smoked Count (Daily Total/Last LitUp): {channel_document['data_games']['joints'][0]:,}/{f'{last_smoked_nice}MST' if last_smoked_nice is not None else 'None'}")
+                            last_smoked_nice = last_smoked.strftime('%H:%M')
+                    await bot.send_chat_message(id_streamer, id_streamer, f"{response_joints_day_reset if response_joints_day_reset is not None else ''} Joints Smoked Count (Total | Last): {channel_document['data_games']['joints'][0]:,} | {f'{last_smoked_nice} MST' if last_smoked_nice is not None else 'None'}")
                 except Exception as f:
                     logger.error(f"{fortime()}: Error in on_stream_chat_message -- jointscount command -- {f}")
                     end_timer("jointscount command")
@@ -832,6 +835,10 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                             """$addtime {{username}} bought {{quantity}} from {{collectionName}}"""
                             name, coll_name = time_value.split("bought")
                             quantity, coll_name = coll_name.split("from")
+                            if quantity.endswith("s"):
+                                quantity = quantity.removesuffix("packs")
+                            else:
+                                quantity = quantity.removesuffix("pack")
                             if coll_name != "marathonmalodes":
                                 logger.error(f"{fortime()}: {coll_name}, {type(coll_name)}, Collection name doesn't match marathonmalodes")
                                 end_timer("addtime command")
@@ -876,6 +883,13 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 except Exception as f:
                     logger.error(f"{fortime()}: Error in on_stream_chat_message - addtime command -- {f}")
                     end_timer("addtime command")
+                    return
+            elif command_check.startswith(("loot", "summathon")):
+                try:
+                    await bot.send_chat_message(id_streamer, id_streamer, loots_link, reply_parent_message_id=data.event.message_id)
+                except Exception as f:
+                    logger.error(f"{fortime()}: Error in on_stream_chat_message -- summathon command -- {f}")
+                    end_timer("summathon command")
                     return
             elif command_check.startswith(("points4time", "points4timerate")):
                 try:
@@ -993,12 +1007,15 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                     logger.error(f"{fortime()}: Error in on_stream_chat_message -- times command -- {f}")
                     end_timer("times command")
                     return
-            elif command_check.startswith("summathon"):
+            elif command_check.startswith("pack"):
                 try:
-                    pass
+                    with open("data/pack_link", "r") as file:
+                        link = file.read()
+                    response_pack = list(map(str, link.splitlines()))
+                    await bot.send_chat_message(id_streamer, id_streamer, " | ".join(response_pack), reply_parent_message_id=data.event.message_id)
                 except Exception as f:
-                    logger.error(f"{fortime()}: Error in on_stream_chat_message -- summathon command -- {f}")
-                    end_timer("summathon command")
+                    logger.error(f"{fortime()}: Error in on_stream_chat_message -- pack command -- {f}")
+                    end_timer("pack command")
                     return
             # Special Commands
             elif command_check.startswith(("ak", "akmoonshine")):
@@ -1048,6 +1065,13 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 except Exception as f:
                     logger.error(f"{fortime()}: Error in on_stream_chat_message -- free command -- {f}")
                     end_timer("free command")
+                    return
+            elif command_check.startswith("fuck"):
+                try:
+                    await bot.send_chat_message(id_streamer, id_streamer, f"I'ma bout outta fucks to give. Time to light up me thinks", reply_parent_message_id=data.event.message_id)
+                except Exception as f:
+                    logger.error(f"{fortime()}: Error in on_stream_chat_message -- fuck command -- {f}")
+                    end_timer("fuck command")
                     return
             elif command_check.startswith(("hug", "chodyhug")):
                 try:
@@ -1124,7 +1148,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                     logger.error(f"{fortime()}: Error in on_stream_chat_message - rubi command -- {f}")
                     end_timer("rubi command")
                     return
-            elif command_check.startswith(("sarah", "rexarah", "fuckinggiggity", "giggity")):
+            elif command_check.startswith(("sarah", "rexarah", "fuckinggiggity", "giggity", "rawr")):
                 try:
                     await bot.send_chat_message(id_streamer, id_streamer, "rexara1Giggity rexara1Wink rexara1Giggity rexara1Wink", reply_parent_message_id=data.event.message_id)
                 except Exception as f:
@@ -1292,23 +1316,24 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                     return
             elif command_check.startswith("test") and chatter_id == id_streamer:
                 try:
+                    pass
                     # print(obs.get_sound_alert("TheeIntroVid1"))
                     # print(obs.get_input_kind_list())
                     # print(obs.get_scene_items("TheeIntro"))
                     # print(obs.get_input_settings("AlertAudio"))
-                    print(obs.set_source_visibility("TheeIntro", "AlertAudio", False))
-                    print(obs.set_input_settings("AlertAudio", {"local_file": f"{alerts}half_bastard.mp3"}))
-                    print(obs.set_source_visibility("TheeIntro", "AlertAudio", True))
-                    print("sleep")
-                    await asyncio.sleep(30)
-                    print(obs.set_source_visibility("TheeIntro", "AlertAudio", False))
-                    print(obs.set_input_settings("AlertAudio", {"local_file": f"{alerts}beep.wav"}))
-                    print(obs.set_source_visibility("TheeIntro", "AlertAudio", True))
-                    print("sleep")
-                    await asyncio.sleep(30)
-                    print(obs.set_source_visibility("TheeIntro", "AlertAudio", False))
-                    print(obs.set_input_settings("AlertAudio", {"local_file": f"{alerts}hype_train.mp3"}))
-                    print(obs.set_source_visibility("TheeIntro", "AlertAudio", True))
+                    # print(obs.set_source_visibility("TheeIntro", "AlertAudio", False))
+                    # print(obs.set_input_settings("AlertAudio", {"local_file": f"{alerts}half_bastard.mp3"}))
+                    # print(obs.set_source_visibility("TheeIntro", "AlertAudio", True))
+                    # print("sleep")
+                    # await asyncio.sleep(30)
+                    # print(obs.set_source_visibility("TheeIntro", "AlertAudio", False))
+                    # print(obs.set_input_settings("AlertAudio", {"local_file": f"{alerts}beep.wav"}))
+                    # print(obs.set_source_visibility("TheeIntro", "AlertAudio", True))
+                    # print("sleep")
+                    # await asyncio.sleep(30)
+                    # print(obs.set_source_visibility("TheeIntro", "AlertAudio", False))
+                    # print(obs.set_input_settings("AlertAudio", {"local_file": f"{alerts}hype_train.mp3"}))
+                    # print(obs.set_source_visibility("TheeIntro", "AlertAudio", True))
                     # print(obs.get_input_settings("AlertAudio"))
                 except Exception as f:
                     print(f)
@@ -1346,7 +1371,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
             try:
                 if channel_document['data_games']['ranword'] in messagecont:  # ToDo: Future feature full Game, add on screen hints, till then quiet about it
                     chatter_document, response_level = await twitch_points_transfer(chatter_document, channel_document, 1000)
-                    response_ranword = f"{chatter_username}, you used thee random word!! It was {channel_document['data_games']['ranword']}. You gained 1,000 points!"
+                    response_ranword = f"You used thee random word!! It was {channel_document['data_games']['ranword']}. You gained 1,000 points!"
                     ran_word(channel_document)
             except Exception as f:
                 logger.error(f"{fortime()}: Error in on_stream_chat_message -- ranword_bit -- {f}")
@@ -1387,7 +1412,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
             if response_level is not None and command is not None and response_udocs is None and response_ranword is None:
                 end_timer("level up during command")
                 return
-            await bot.send_chat_message(id_streamer, id_streamer, f"{f'{response_ranword}.' if response_ranword is not None else ''}{f'{response}.' if response is not None else ''}{f' {response_level}.' if response_level is not None else ''}", reply_parent_message_id=data.event.message_id)
+            await bot.send_chat_message(id_streamer, id_streamer, f"{f'{response_ranword}.' if response_ranword is not None else ''} {f'{response}.' if response is not None else ''} {f' {response_level}.' if response_level is not None else ''}", reply_parent_message_id=data.event.message_id)
         end_timer("on_stream_chat_message")
     except Exception as e:
         logger.error(f"{fortime()}: Error in on_stream_chat_message -- {e}")
@@ -1606,7 +1631,9 @@ async def on_stream_point_redemption(data: ChannelPointsCustomRewardRedemptionAd
         response_redemption, response_check_in, times_spun = None, None, None
         channel_document = await get_channel_document(data.event.broadcaster_user_id, data.event.broadcaster_user_name, data.event.broadcaster_user_login)
         special_logger.info(f"fin--RewardID: {data.event.reward.id} -- {data.event.reward.title}")
-        if data.event.reward.title == "Stream Check-In":
+        if data.event.reward.title == "Text-to-Speech":
+            return
+        elif data.event.reward.title == "Stream Check-In":
             chatter_document = await get_chatter_document(data, channel_document)
             response_boost, now_time = None, datetime.datetime.now()
             if chatter_document['data_user']['dates']['checkin_streak'][1] is None:
@@ -1644,16 +1671,15 @@ async def on_stream_point_redemption(data: ChannelPointsCustomRewardRedemptionAd
             colour = data.event.reward.title.replace(" ", "").removeprefix("EQColour")
             change_colour_eq(colour)
         elif data.event.reward.title.startswith("Webcam Colour"):
-            new_colour = data.event.reward.title.replace(" ", "").removeprefix("WebcamColour")
+            new_colour = data.event.reward.title.replace(" ", "").removeprefix("WebcamColour").title()
             await change_webcam("colour", new_colour=new_colour)
         elif data.event.reward.title == "Flip Me":
             await change_webcam("transform", new_transform="Flip")
         elif data.event.reward.title.startswith("Spin Me"):
-
             if data.event.reward.title.replace(" ", "").removeprefix("SpinMe").startswith("Multiple"):
                 multiple_spin = True
             success, times_spun = await change_webcam("transform", new_transform="Spin", multiple_spin=multiple_spin)
-        await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.user_name} {response_check_in if response_check_in is not None else response_redemption if response_redemption is not None else f'used {data.event.reward.cost:,} {channel_point_name} to redeem {data.event.reward.title}'}{f' {times_spun} times spun.' if multiple_spin else '.'}")
+        await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.user_name} {response_check_in if response_check_in is not None else response_redemption if response_redemption is not None else f'used {data.event.reward.cost:,} {channel_point_name} to redeem {data.event.reward.title}'}{f' {times_spun} times spun.' if multiple_spin else ''}")
     except Exception as e:
         logger.error(f"{fortime()}: Error in 'on_stream_point_redemption' -- {e}")
         return
@@ -1742,18 +1768,19 @@ async def on_stream_subbie_gift(data: ChannelSubscriptionGiftEvent):
 
 async def on_stream_raid_in(data: ChannelRaidEvent):
     try:
-        response, response_level = "!!!", None
-        channel_document = await get_channel_document(data.event.to_broadcaster_user_id, data.event.to_broadcaster_user_name, data.event.to_broadcaster_user_id)
-        chatter_document = await get_chatter_document(data)
-        if chatter_document is not None:
-            points = float((((raid_seconds / 4) * standard_seconds) * data.event.viewers) / 2)
-            chatter_document, response_level = await twitch_points_transfer(chatter_document, channel_document, points)
-        if channel_document['data_channel']['writing_clock']:
-            seconds = float((raid_seconds * standard_seconds) * data.event.viewers)
-            seconds, time_not_added = write_clock(seconds, True, channel_document, obs)
-            response = f" adding {str(datetime.timedelta(seconds=int(seconds))).title()} to thee clock!!! {f'Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}"
-        await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.from_broadcaster_user_name} raid with {data.event.viewers} incoming{response} Go show them some love back y'all!{f' {response_level}' if response_level is not None else ''}")
-        await bot.send_a_shoutout(id_streamer, data.event.from_broadcaster_user_id, id_streamer)
+        if data.event.viewers > 1:
+            response, response_level = "!!!", None
+            channel_document = await get_channel_document(data.event.to_broadcaster_user_id, data.event.to_broadcaster_user_name, data.event.to_broadcaster_user_id)
+            chatter_document = await get_chatter_document(data)
+            if chatter_document is not None:
+                points = float((((raid_seconds / 4) * standard_seconds) * data.event.viewers) / 2)
+                chatter_document, response_level = await twitch_points_transfer(chatter_document, channel_document, points)
+            if channel_document['data_channel']['writing_clock']:
+                seconds = float((raid_seconds * standard_seconds) * data.event.viewers)
+                seconds, time_not_added = write_clock(seconds, True, channel_document, obs)
+                response = f" adding {str(datetime.timedelta(seconds=int(seconds))).title()} to thee clock!!! {f'Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}"
+            await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.from_broadcaster_user_name} raid with {data.event.viewers} incoming{response} Go show them some love back y'all!{f' {response_level}' if response_level is not None else ''}")
+            await bot.send_a_shoutout(id_streamer, data.event.from_broadcaster_user_id, id_streamer)
     except Exception as e:
         logger.error(f"{fortime()}: Error in 'on_stream_raid_in' -- {e}")
         return
@@ -1796,8 +1823,14 @@ async def on_stream_update(data: ChannelUpdateEvent):
 
 async def on_stream_start(data: StreamOnlineEvent):
     try:
+        pack_response = None
         channel_document = await get_channel_document(data.event.broadcaster_user_id, data.event.broadcaster_user_name, data.event.broadcaster_user_login)
         if channel_document is not None:
+            if channel_document['data_channel']['writing_clock']:
+                with open("data/pack_link", "r") as file:
+                    link = file.read()
+                response_pack = list(map(str, link.splitlines()))
+                pack_response = " | ".join(response_pack)
             new_ats_count, new_cod_count, new_crash_count, new_tag = [0, 0], [0, 0, 0, 0], 0, [None, None, None]
             if channel_document['channel_details']['online_last'] is not None:
                 if await get_long_sec(fortime_long(datetime.datetime.now())) - await get_long_sec(fortime_long(channel_document['channel_details']['online_last'])) < 7200:  # ToDo: Monitor This
@@ -1812,7 +1845,8 @@ async def on_stream_start(data: StreamOnlineEvent):
             channel_document['data_channel']['hype_train'].update(current=False, current_level=1)
             channel_document['data_games'].update(ats=new_ats_count, cod=new_cod_count, stream=new_crash_count, tag=new_tag)
             channel_document.save()
-        await bot.send_chat_message(id_streamer, id_streamer, f"Hola. I is here :D Big Chody Hugs")
+        await bot.send_chat_message(id_streamer, id_streamer, f"Hola. I is here :D Big Chody Hugs.{f' Thee current free packs are(claimable once per link): {pack_response}' if pack_response is not None else ''}")
+
     except Exception as e:
         logger.error(f"{fortime()}: Error in 'on_stream_start' -- {e}")
         return
@@ -1824,7 +1858,8 @@ async def on_stream_end(data: StreamOfflineEvent):
         if channel_document is not None:
             channel_document['channel_details'].update(online=False, online_last=datetime.datetime.now())
             channel_document.save()
-        await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.broadcaster_user_name} has faded into thee shadows. {response_thanks}")
+        # await bot.send_chat_message(id_streamer, id_streamer, f"{data.event.broadcaster_user_name} has faded into thee shadows. {response_thanks}")
+        await bot.send_chat_message(id_streamer, id_streamer, f"I have faded into thee shadows. {response_thanks}")
     except Exception as e:
         logger.error(f"{fortime()}: Error in 'on_stream_end' -- {e}")
         return
@@ -1952,7 +1987,7 @@ async def change_webcam(webcam_manipulation: str, new_colour: str = "", new_tran
             obs.set_filter_visibility("nvcam", "HIDDEN", False)
             obs.set_filter_visibility("nvcam", "MAGENTA", False)
             obs.set_filter_visibility("nvcam", "RED", False)
-            obs.set_source_transform("NS-Cam", "nvcam", {"rotation": 0.0})
+            obs.set_source_transform("NS-Cam", "nvcam", {"rotation": 360.0})
         else:
             success = False
         return success, x
@@ -2245,16 +2280,19 @@ async def twitch_points_transfer(chatter_document: Document, channel_document: D
 
 async def update_tag_stats(chatter_document: Document, add_total: int, add_good: int, add_fail: int):
     response = None
+    user_id = chatter_document['_id']
     new_tag_total = chatter_document['data_games']['tag'][0] + add_total
     new_tag_good = chatter_document['data_games']['tag'][1] + add_good
     new_tag_fail = chatter_document['data_games']['tag'][2] + add_fail
+    new_boost = chatter_document['data_rank']['boost']
     if new_tag_good % 10 == 0 and add_good > 0:
-        new_boost = chatter_document['data_rank']['boost'] + 25
-        chatter_document['data_rank'].update(boost=new_boost)
-        response = f"{chatter_document['name']} you have gained 25 boost points{f', your new total is {new_boost}' if new_boost != 25 else ''}"
+        new_boost += 25
+        response = f"You have gained 25 boost points{f', your new total is {new_boost:,.2f}' if new_boost != 25 else ''}"
+    chatter_document['data_rank'].update(boost=new_boost)
     chatter_document['data_games'].update(tag=[new_tag_total, new_tag_good, new_tag_fail])
     chatter_document.save()
-    return response
+    chatter_document = Users.objects.get(_id=user_id)
+    return chatter_document, response
 
 
 async def xp_transfer(chatter_document, value: float, add: bool = True):
