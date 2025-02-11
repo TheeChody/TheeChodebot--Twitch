@@ -1,87 +1,145 @@
 """
 ---channel_doc---
+--data_counters--
+ats: TractorCrashes, GameCrashes
+cod: TotalMatches, TotalWins, TotalLosses, TotalCrashes
+stream_crash: TotalCrashes
 --data_games--
-ats: Tractor/Game Crash
-cod: Total/Wins/Lost/Crash
 ranword: Random_Word
-stream: Total
 tag: user_id, user_name, time tagged
 
 ---user_doc---
 --data_games--
-fish: InProcessFish
-tag: Total/Good/Fail
-pp: Size/LastDone/History
+fish: Dict
+    auto: Dict
+        cast: AutoCastLeft Float
+        cost: AutoCastCost Float
+        gain: TotalGained Float
+        lost: TotalLost Float
+        rewards: Rewards List
+    line: Dict
+        cast: CurrentlyCasted Bool
+        cut: Next/CurrentCastCut Bool
+        cut_by: If^^NameOfChatterWhoDidIt Str
+        cut_last: LastCut Datetime
+iq: Dict
+    current: CurrentIQ Int
+    last: LastChecked Datetime
+    history: HistoryIQ List
+tag: [Total/Good/Fail]
+pp: [Size/LastDone/[History]]
+--data_rank--
+id: user_id
+login: user_login
+discord_id: discord_user_id -- to be phased out?
+points: points_earned
+-dates-
+first_chat: FirstChat
+latest_chat: LastChat
+checkin_streak: TimesCheckedIn(ResetOn5), LastCheckInDate
+-channel-
+id: broadcaster_id_document_created_with
+name: broadcaster_name_document_created_with
 """
-from mongoengine import Document, IntField, DynamicField, DateTimeField, DictField, StringField
+from mongoengine import Document, IntField, DynamicField, DictField, StringField
 
 
 class Channels(Document):
-    user_id = IntField(primary_key=True)
+    _id = IntField(primary_key=True)
     user_name = DynamicField(default="")
     user_login = DynamicField(default="")
-    channel_details = DictField(default={"online": False,
-                                         "online_last": None,
-                                         "branded": False,
-                                         "title": "",
-                                         "game_id": "",
-                                         "game_name": "",
-                                         "content_class": [],
-                                         "tags": []})
-    data_channel = DictField(default={"followers": ["774737491", "192918528"],
-                                      "hype_train": {"current": False,
-                                                     "current_level": 1,
-                                                     "last": None,
-                                                     "last_level": 2,
-                                                     "record_level": 2},
-                                      "writing_clock": True})
-    data_games = DictField(default={"ats": [0, 0],
-                                    "cod": [0, 0, 0, 0],
-                                    "joints": [0, None],
-                                    "ranword": "",
-                                    "stream": 0,
-                                    "tag": [None, None, None]})
-    data_lists = DictField(default={"ignore": ["431026547", "52268235", "253326823", "100135110", "431199284", "216527497", "451658633", "656479529"],
-                                    "lurk": ["848563434", "882825189", "99161823", "669781726"],
-                                    "mods": ["542995008", "659673020", "800907099", "451658633", "842545503", "1023291886"],
-                                    "non_tag": ["777768639", "186953777", "1023291886", "881267248", "806552159", "121590725", "758228900", "268136120", "170147951"],
-                                    "spam": []})
-
-
-class EconomyData(Document):
-    author_id = IntField(primary_key=True)
-    author_name = DynamicField(default="")
-    guild_name = DynamicField(default="")
-    last_daily_done = DateTimeField(default=None)
-    next_daily_avail = DateTimeField(default=None)
-    points_value = DynamicField(default=0)
-    last_gained_value = DynamicField(default=0)
-    last_lost_value = DynamicField(default=0)
-    highest_gained_value = DynamicField(default=0)
-    highest_lost_value = DynamicField(default=0)
-    highest_gambling_won = DynamicField(default=0)
-    highest_gambling_lost = DynamicField(default=0)
-    total_gambling_won = DynamicField(default=0)
-    total_gambling_lost = DynamicField(default=0)
-    twitch_id = DynamicField(default=[])
-    meta = {"db_alias": "Discord_Database"}
+    channel_details = DictField(default={
+        "online": False,
+        "online_last": None,
+        "branded": False,
+        "title": "",
+        "game_id": "",
+        "game_name": "",
+        "content_class": [],
+        "tags": []
+    })
+    data_channel = DictField(default={
+        "followers": [],
+        "hype_train": {
+            "current": False,
+            "current_level": 1,
+            "last": None,
+            "last_level": 0,
+            "record_level": 0
+        },
+        "last_clip": None,
+        "writing_clock": False
+    })
+    data_counters = DictField(default={
+        "ats": [0, 0],
+        "cod": [0, 0, 0, 0],
+        "joints": [0, None],
+        "stream_crash": 0
+    })
+    data_games = DictField(default={
+        "fish_recast": [],
+        "ranword": "",
+        "tag": [None, None, None]
+    })
+    data_lists = DictField(default={
+        "ignore": [],
+        "lurk": [],
+        "mods": [],
+        "non_tag": [],
+        "spam": []
+    })
 
 
 class Users(Document):
-    _id = StringField(primary_key=True)  # This will be 'chatter_id-first 5 characters of broadcaster_id'
+    _id = StringField(primary_key=True)
     name = StringField(default="")
-    data_games = DictField(default={"fish": False,
-                                    "tag": [0, 0, 0],
-                                    "pp": [None, None, []]})
-    data_rank = DictField(default={"boost": 0.0,
-                                   "level": 1,
-                                   "xp": 0.0})
-    data_user = DictField(default={"id": "",
-                                   "login": "",
-                                   "discord_id": "",
-                                   "points": 0.0,
-                                   "dates": {"first_chat": None,
-                                             "latest_chat": None,
-                                             "checkin_streak": [0, None]},
-                                   "channel": {"id": "",
-                                               "name": ""}})
+    data_games = DictField(default={
+        "fish": {
+            "auto": {
+                "cast": 0,
+                "cost": 0,
+                "gain": 0.0,
+                "lost": 0.0,
+                "rewards": []
+            },
+            "line": {
+                "cast": False,
+                "cut": False,
+                "cut_by": "",
+                "cut_last": None
+            }
+        },
+        "iq": {
+            "current": 0.0,
+            "last": None,
+            "history": []
+        },
+        "jail": {
+            "in": False,
+            "last": None,
+            "escapes": 0
+        },
+        "tag": [0, 0, 0],
+        "pp": [None, None, []]
+    })
+    data_rank = DictField(default={
+        "boost": 0.0,
+        "level": 1,
+        "xp": 0.0
+    })
+    data_user = DictField(default={
+        "id": "",
+        "login": "",
+        "discord_id": "",
+        "points": 0.0,
+        "dates": {
+            "first_chat": None,
+            "latest_chat": None,
+            "checkin_streak": [0, None],
+            "daily_cards": [0, None]
+        },
+        "channel": {
+            "id": "",
+            "name": ""
+        }
+    })
