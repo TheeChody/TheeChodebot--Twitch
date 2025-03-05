@@ -1,111 +1,152 @@
 import os
 import time
-import logging
+import asyncio
 import datetime
 from functions import clock, clock_max, clock_pause, clock_total, clock_reset_time, read_clock, \
     write_clock, reset_max_time, reset_total_time, reset_current_time, loop_get_user_input_clock, reset_sofar_time, \
-    clock_sofar, read_clock_pause, reset_clock_slow_rate, reset_clock_pause, WebsocketsManager, read_clock_max, \
-    fortime, setup_logger, logs_directory, read_clock_sofar, read_clock_slow_rate_time, cls, write_clock_slow_rate_time, \
-    reset_clock_accel_rate, read_clock_up_time, clock_direction_time, read_clock_phase, read_clock_accel_time, \
-    read_clock_slow_time, write_clock_phase, strict_pause, countdown_rate_strict, clock_accel_time, clock_slow_time, \
-    set_timer_rate, set_timer_count_up, set_timer_pause, obs_timer_main, obs_timer_sofar, obs_timer_scene, obs_timer_rate, \
-    obs_timer_countup, read_clock_direction, clock_direction
+    clock_sofar, reset_clock_slow_rate, reset_clock_pause, WebsocketsManager, read_clock_max, fortime, setup_logger, \
+    full_shutdown, read_clock_sofar, cls, write_clock_phase_slow_rate, reset_clock_accel_rate, clock_time_mode, \
+    read_clock_time_phase_accel, read_clock_time_phase_slow, clock_phase, strict_pause, countdown_rate_strict, clock_time_phase_accel, \
+    clock_time_phase_slow, set_timer_rate, set_timer_count_up, set_timer_pause, obs_timer_main, obs_timer_sofar, obs_timer_scene, \
+    obs_timer_rate, obs_timer_countup, clock_mode, define_countdown, write_sofar, clock_phase_old, clock_mode_old, clock_pause_old, \
+    obs_timer_pause, clock_phase_slow_rate, clock_cuss_state, clock_lube_state, obs_timer_cuss, obs_timer_lube, clock_lube, clock_cuss, \
+    set_timer_lube, set_timer_cuss
 
 logger_list = []
+slash_list = ["\\", "|", "/", "|"]
 
 
 def countdown(total_seconds: float):
-    def check_pause(pause: float, rate: float = 1.0, direction: str = "down"):
-        pause_remainder = 0.0
-        second_take = 1.0
-        if pause != 0.0:
-            if direction == "down":
-                pause -= rate
-                if pause < 0.0:
-                    pause_remainder = abs(pause)
-                    pause = 0.0
-                    set_timer_pause(obs, False)
-                with open(clock_pause, "w") as file:
-                    file.write(str(pause))
-                second_take = 0.0 + pause_remainder
-            else:
-                pause += rate
-                with open(clock_pause, "w") as file:
-                    file.write(str(pause))
-                second_take = 0.0
-        return second_take, pause
-    start_time = time.monotonic()
+    def define_slash(rotation: int):
+        if rotation + 1 > len(slash_list):
+            rotation = 0
+        slash = slash_list[rotation]
+        rotation += 1
+        return slash, rotation
+    rotation = 0
+    start_time = time.perf_counter()
     while total_seconds >= 1.0:
         try:
-            add = False
-            countdown_direction = read_clock_direction()
-            new_countdown_direction = read_clock_direction()
-            pause = float(read_clock_pause())
-            countdown_phase = read_clock_phase()
-            old_countdown_phase = read_clock_phase()
-            countdown_up_time = float(read_clock_up_time())
-            countdown_slow_rate_time = float(read_clock_slow_rate_time())
-            if countdown_direction == "up":  #countdown_up_time > 0:
-                add = True
-                with open(clock_direction, "w") as file:
-                    file.write(countdown_direction)
-                countdown_up_time -= strict_pause
-                with open(clock_direction_time, "w") as file:
-                    file.write(str(countdown_up_time))
-                set_timer_count_up(obs, countdown_up_time)
-                if countdown_up_time == 0:
-                    new_countdown_direction = "down"
-            if countdown_phase == "slow":
-                phase = "S"
-                countdown_slow_time = float(read_clock_slow_time()) - strict_pause
-                if countdown_slow_time <= 0:
-                    countdown_slow_time = 0
-                    if float(read_clock_accel_time()) > 0:
-                        countdown_phase = "accel"
-                    else:
-                        countdown_phase = "norm"
-                    write_clock_phase(countdown_phase)
-                with open(clock_slow_time, "w") as file:
-                    file.write(str(countdown_slow_time))
-                set_timer_rate(obs, countdown_slow_time)
-                if countdown_slow_rate_time <= 1.0:
-                    countdown_slow_rate_time = countdown_rate_strict
-                    write_clock_slow_rate_time(countdown_rate_strict)
-                    second_take, pause = check_pause(pause, direction=countdown_direction)
+            add, pause, pause_old, countdown_up_time, countdown_slow_rate_time, old_countdown_direction, countdown_direction, \
+                new_countdown_direction, old_countdown_phase, countdown_phase, new_countdown_phase, countdown_cuss, countdown_cuss_state, \
+                countdown_lube, countdown_lube_state = define_countdown()
+            if countdown_phase != old_countdown_phase:
+                with open(clock_phase_old, "w") as file:
+                    file.write(countdown_phase)
+                if countdown_phase == "norm":
+                    obs.set_source_visibility(obs_timer_scene, obs_timer_rate, False)
                 else:
-                    countdown_slow_rate_time -= strict_pause
-                    write_clock_slow_rate_time(countdown_slow_rate_time)
-                    second_take = 0.0
-            elif countdown_phase == "accel":
-                phase = "A"
-                countdown_accel_time = float(read_clock_accel_time()) - strict_pause
-                if countdown_accel_time <= 0:
-                    countdown_accel_time = 0
-                    if float(read_clock_slow_time()) > 0:
-                        countdown_phase = "slow"
-                    else:
-                        countdown_phase = "norm"
-                    write_clock_phase(countdown_phase)
-                with open(clock_accel_time, "w") as file:
-                    file.write(str(countdown_accel_time))
-                set_timer_rate(obs, countdown_accel_time)
-                second_take, pause = check_pause(pause, countdown_rate_strict, countdown_direction)
-                if second_take == 1.0:
-                    second_take = countdown_rate_strict
-            else:
-                phase = "N"
-                second_take, pause = check_pause(pause, direction=countdown_direction)
-            if countdown_phase == "norm" and old_countdown_phase != "norm":
-                obs.set_source_visibility(obs_timer_scene, obs_timer_rate, False)
-            if countdown_direction == "up" and new_countdown_direction == "down":
-                with open(clock_direction, "w") as file:
-                    file.write(new_countdown_direction)
+                    set_timer_rate(obs, countdown_phase)
+            if countdown_direction == "down" != old_countdown_direction:
+                with open(clock_mode_old, "w") as file:
+                    file.write(countdown_direction)
                 obs.set_source_visibility(obs_timer_scene, obs_timer_countup, False)
-            total_seconds = write_clock(second_take, add, obs, True)
+            if pause_old:
+                with open(clock_pause_old, "w") as file:
+                    file.write("False")
+                obs.set_source_visibility(obs_timer_scene, obs_timer_pause, False)
+            if pause == 0:
+                if countdown_direction == "up":
+                    add = True
+                    countdown_up_time -= strict_pause
+                    if countdown_up_time <= 0:
+                        countdown_up_time = 0
+                        new_countdown_direction = "down"
+                    with open(clock_time_mode, "w") as file:
+                        file.write(str(countdown_up_time))
+                    set_timer_count_up(obs, countdown_up_time)
+                if countdown_phase == "slow":
+                    phase = "Slow"
+                    countdown_slow_time = float(read_clock_time_phase_slow()) - strict_pause
+                    if countdown_slow_time <= 0:
+                        countdown_slow_time = 0
+                        if float(read_clock_time_phase_accel()) > 0:
+                            new_countdown_phase = "accel"
+                        else:
+                            new_countdown_phase = "norm"
+                    with open(clock_time_phase_slow, "w") as file:
+                        file.write(str(countdown_slow_time))
+                    set_timer_rate(obs, countdown_phase)
+                    if countdown_slow_rate_time <= 1.0:
+                        sec_manip = strict_pause
+                        countdown_slow_rate_time = countdown_rate_strict
+                        write_clock_phase_slow_rate(countdown_rate_strict)
+                    else:
+                        countdown_slow_rate_time -= strict_pause
+                        write_clock_phase_slow_rate(countdown_slow_rate_time)
+                        sec_manip = 0.0
+                elif countdown_phase == "accel":
+                    phase = "Xcel"
+                    sec_manip = countdown_rate_strict
+                    countdown_accel_time = float(read_clock_time_phase_accel()) - strict_pause
+                    if countdown_accel_time <= 0:
+                        countdown_accel_time = 0
+                        if float(read_clock_time_phase_slow()) > 0:
+                            new_countdown_phase = "slow"
+                        else:
+                            new_countdown_phase = "norm"
+                    with open(clock_time_phase_accel, "w") as file:
+                        file.write(str(countdown_accel_time))
+                    set_timer_rate(obs, countdown_phase)
+                else:
+                    sec_manip = strict_pause
+                    phase = "Norm"
+                total_seconds = write_clock(sec_manip, logger, add, obs, True, False)
+                if total_seconds is None:
+                    logger.error(f"{fortime()}: ValueError/Another Error Occurred in write_clock, exiting CountDown to preserve data")
+                    shutdown()
+                if countdown_phase != new_countdown_phase:
+                    with open(clock_phase_old, "w") as file:
+                        file.write(countdown_phase)
+                    with open(clock_phase, "w") as file:
+                        file.write(new_countdown_phase)
+                if countdown_direction == "up" and new_countdown_direction == "down":
+                    with open(clock_mode_old, "w") as file:
+                        file.write(countdown_direction)
+                    with open(clock_mode, "w") as file:
+                        file.write(new_countdown_direction)
+            else:
+                total_seconds = float(read_clock())
+                phase = "Pauz"
+                pause -= strict_pause
+                if pause <= 0:
+                    pause = 0.0
+                    with open(clock_pause_old, "w") as file:
+                        file.write("True")
+                with open(clock_pause, "w") as file:
+                    file.write(str(pause))
+                write_sofar(1, obs)
+                set_timer_pause(obs)
+            if countdown_cuss_state and countdown_cuss == 0:
+                with open(clock_cuss_state, "w") as file:
+                    file.write("False")
+                obs.set_source_visibility(obs_timer_scene, obs_timer_cuss, False)
+            elif countdown_cuss > 0:
+                countdown_cuss -= 1
+                if countdown_cuss <= 0:
+                    countdown_cuss = 0
+                with open(clock_cuss, "w") as file:
+                    file.write(str(countdown_cuss))
+                set_timer_cuss(obs, countdown_cuss)
+            if countdown_lube_state and countdown_lube == 0:
+                with open(clock_lube_state, "w") as file:
+                    file.write("False")
+                obs.set_source_visibility(obs_timer_scene, obs_timer_lube, False)
+            elif countdown_lube > 0:
+                countdown_lube -= 1
+                if countdown_lube <= 0:
+                    countdown_lube = 0
+                with open(clock_lube, "w") as file:
+                    file.write(str(countdown_lube))
+                set_timer_lube(obs, countdown_lube)
             time_now = datetime.datetime.now()
             time_sofar = float(read_clock_sofar())
-            logger.info(f"{total_seconds:.2f} | {str(datetime.timedelta(seconds=int(total_seconds))).title()} | Pa;{int(pause)};{str(datetime.timedelta(seconds=pause)).title()} -- Ph;{phase};{f'{int(countdown_slow_rate_time)};{int(float(read_clock_slow_time()))}' if phase == 'S' else f'{int(countdown_rate_strict)};{int(float(read_clock_accel_time()))}' if phase == 'A' else '1;0'} | Di;{f'U;{int(countdown_up_time)}' if add else 'D;0'} -- {time_sofar} | {str(datetime.timedelta(seconds=time_sofar)).title()} -- {str(time_now.strftime(f'%b %d')).capitalize()}, {str(time_now.strftime('%I:%M:%S%p')).lower().removeprefix('0')} -- {strict_pause - ((time.monotonic() - start_time) % strict_pause)}")
-            time.sleep(strict_pause - ((time.monotonic() - start_time) % strict_pause))
+            slash, rotation = define_slash(rotation)
+            logger.info(f"{total_seconds:.2f}{slash}{str(datetime.timedelta(seconds=int(total_seconds))).title()} | {phase}{slash}{f'{int(countdown_slow_rate_time)}{slash}{str(datetime.timedelta(seconds=int(float(read_clock_time_phase_slow())))).title()}' if phase == 'Slow' else f'{int(countdown_rate_strict)}{slash}{str(datetime.timedelta(seconds=int(float(read_clock_time_phase_accel())))).title()}' if phase == 'Xcel' else f'1{slash}{str(datetime.timedelta(seconds=int(pause))).title()}' if phase == 'Pauz' else f'1{slash}0:00:00'} | {f'Up{slash}{str(datetime.timedelta(seconds=int(countdown_up_time))).title()}' if countdown_direction == 'up' else f'Dn{slash}0:00:00'} | Cu{slash}{str(datetime.timedelta(seconds=countdown_cuss)).title()} | Lu{slash}{str(datetime.timedelta(seconds=countdown_lube)).title()} | {time_sofar}{slash}{str(datetime.timedelta(seconds=time_sofar)).title()} | {str(time_now.strftime(f'%b %d')).capitalize()}, {str(time_now.strftime('%I:%M:%S%p')).lower().removeprefix('0')} | {f'{strict_pause - ((time.perf_counter() - start_time) % strict_pause):.40f}'.removeprefix('0')}")
+            time.sleep(strict_pause - ((time.perf_counter() - start_time) % strict_pause))
+        except ValueError:
+            logger.error(f"{fortime()}: Error in countdown -- ValueError detected!! Shutting down to preserve data")
+            shutdown()
         except KeyboardInterrupt:
             break
     logger.info(f"{str(datetime.timedelta(seconds=float(read_clock()))).title()} {total_seconds} TESTING STUFFS")
@@ -121,33 +162,69 @@ def shutdown(obs_connected: bool = True):
     if obs_connected:
         obs.disconnect()
         logger.info(f"Disconnected from OBS")
-    logging.shutdown()
-    for entry in logger_list:
-        try:
-            os.rename(f"{logs_directory}{entry}", f"{logs_directory}\\archive_log\\{entry}")
-        except Exception as e:
-            print(e)
-            pass
+    asyncio.run(full_shutdown(logger_list))
     print(f"Shutdown Sequence Completed")
-    quit(420)
+    quit(666)
 
 
 if __name__ == "__main__":
+    os.system(f"color 02")
     init_time = fortime().replace(' ', '--').replace(':', '-')
-    logger = setup_logger('countdown_logger', f'{init_time}-countdown_log.log', logger_list)
+    logger = setup_logger('countdown_logger', f'countdown_log--{init_time}.log', logger_list)
     try:
         if not os.path.exists(clock):
             with open(clock, "w") as file:
                 file.write(clock_reset_time)
-            logger.info("File 'clock.txt' created first time run")
-        if not os.path.exists(clock_total):
-            with open(clock_total, "w") as file:
+            logger.info(f"File '{clock}' created first time run")
+        if not os.path.exists(clock_mode):
+            with open(clock_mode, "w") as file:
+                file.write("down")
+            logger.info(f"File '{clock_mode}' created first time run")
+        if not os.path.exists(clock_mode_old):
+            with open(clock_mode_old, "w") as file:
+                file.write("down")
+            logger.info(f"File '{clock_mode_old}' created first time run")
+        if not os.path.exists(clock_pause):
+            with open(clock_pause, "w") as file:
                 file.write(clock_reset_time)
-            logger.info("File 'clock_total.txt' created first time run")
+            logger.info(f"File '{clock_pause}' created first time run")
+        if not os.path.exists(clock_pause_old):
+            with open(clock_pause_old, "w") as file:
+                file.write("False")
+            logger.info(f"File '{clock_pause_old}' created first time run")
+        if not os.path.exists(clock_phase):
+            with open(clock_phase, "w") as file:
+                file.write("norm")
+            logger.info(f"File '{clock_phase}' created first time run")
+        if not os.path.exists(clock_phase_old):
+            with open(clock_phase_old, "w") as file:
+                file.write("norm")
+            logger.info(f"File '{clock_phase_old}' created first time run")
+        if not os.path.exists(clock_phase_slow_rate):
+            with open(clock_phase_slow_rate, "w") as file:
+                file.write("5.0")
+            logger.info(f"File '{clock_phase_slow_rate}' created first time run")
+        if not os.path.exists(clock_time_mode):
+            with open(clock_time_mode, "w") as file:
+                file.write("0")
+            logger.info(f"File '{clock_time_mode}' created first time run")
+        if not os.path.exists(clock_time_phase_accel):
+            with open(clock_time_phase_accel, "w") as file:
+                file.write("0")
+            logger.info(f"File '{clock_time_phase_accel}' created first time run")
+        if not os.path.exists(clock_time_phase_slow):
+            with open(clock_time_phase_slow, "w") as file:
+                file.write("0")
+            logger.info(f"File '{clock_time_phase_slow}' created first time run")
         if not os.path.exists(clock_sofar):
             with open(clock_sofar, "w") as file:
                 file.write(clock_reset_time)
-                logger.info("File 'clock_sofar.txt' created first time run")
+                logger.info(f"File '{clock_sofar}' created first time run")
+        if not os.path.exists(clock_total):
+            with open(clock_total, "w") as file:
+                file.write(clock_reset_time)
+            logger.info(f"File '{clock_total}' created first time run")
+
         if not os.path.exists(clock_max):
             while True:
                 cls()
@@ -173,6 +250,7 @@ if __name__ == "__main__":
                             file.write(str(max_seconds))
                         print(f"Max time set successfully as {str(datetime.timedelta(seconds=int(max_seconds))).title()} - {max_seconds}")
                         break
+
         cls()
     except Exception as e:
         logger.error(f"Error in data check -- {e}")
@@ -203,7 +281,7 @@ if __name__ == "__main__":
                         cls()
                         try:
                             if user_seconds.isdigit():
-                                write_clock(float(user_seconds), add, obs=obs, manual=True)
+                                write_clock(float(user_seconds), logger, add, obs=obs, manual=True)
                                 obs.set_text(obs_timer_sofar, str(datetime.timedelta(seconds=float(read_clock_sofar()))).title())
                                 input("Hit ENTER To Start Thee Timer!\n")
                                 total_seconds = float(read_clock())
