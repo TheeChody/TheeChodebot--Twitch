@@ -74,8 +74,13 @@ standard_direct_dono = 7.0  # Base value -- For marathon related events
 nl = "\n"
 long_dashes = "------------------------------------------------------------------------------"
 bot_delete_phrases = f"{data_bot}delete_phrases.txt"
+bot_fish = f"{data_bot}fish_rewards"
+bot_flash_frequency = f"{data_bot}flash_frequency.txt"
+bot_flash_speed = f"{data_bot}flash_speed.txt"
 bot_raid_mode = f"{data_bot}raid_mode.txt"
 bot_mini_games = f"{data_bot}mini_games.txt"
+bot_night_mode = f"{data_bot}night_mode.txt"
+song_requests = f"{data_bot}song_requests.txt"
 
 clock = f"{data_clock}main.txt"
 clock_cuss = f"{data_clock}time_cuss.txt"
@@ -280,57 +285,25 @@ def configure_hype_ehvent(channel_document: Document, obs: WebsocketsManager):
 
 
 def define_countdown():
-    with open(clock_pause, "r") as file:
-        pause = float(file.read())
-    with open(clock_pause_old, "r") as file:
-        pause_old = file.read()
-        if pause_old == "True":
-            pause_old = True
-        else:
-            pause_old = False
-    with open(clock_time_mode, "r") as file:
-        countdown_up_time = float(file.read())
-    with open(clock_phase_slow_rate, "r") as file:
-        countdown_slow_rate_time = float(file.read())
-    with open(clock_mode_old, "r") as file:
-        old_countdown_direction = file.read()
-    with open(clock_mode, "r") as file:
-        countdown_direction = file.read()
+    add = False
+    pause = read_file(clock_pause, float)
+    pause_old = read_file(clock_pause_old, bool)
+    countdown_up_time = read_file(clock_time_mode, float)
+    countdown_slow_rate_time = read_file(clock_phase_slow_rate, float)
+    old_countdown_direction = read_file(clock_mode_old)
+    countdown_direction = read_file(clock_mode)
     new_countdown_direction = countdown_direction
-    with open(clock_phase_old, "r") as file:
-        old_countdown_phase = file.read()
-    with open(clock_phase, "r") as file:
-        countdown_phase = file.read()
+    old_countdown_phase = read_file(clock_phase_old)
+    countdown_phase = read_file(clock_phase)
     new_countdown_phase = countdown_phase
-
-    with open(clock_cuss, "r") as file:
-        countdown_cuss = float(file.read())
-    with open(clock_cuss_state, "r") as file:
-        countdown_cuss_state = file.read()
-        if countdown_cuss_state == "True":
-            countdown_cuss_state = True
-        else:
-            countdown_cuss_state = False
-    # with open(clock_ice, "r") as file:
-    #     countdown_ice = float(file.read())
-    # with open(clock_ice_state, "r") as file:
-    #     countdown_ice_state = file.read()
-    #     if countdown_ice_state == "True":
-    #         countdown_ice_state = True
-    #     else:
-    #         countdown_ice_state = False
-    with open(clock_lube, "r") as file:
-        countdown_lube = float(file.read())
-    with open(clock_lube_state, "r") as file:
-        countdown_lube_state = file.read()
-        if countdown_lube_state == "True":
-            countdown_lube_state = True
-        else:
-            countdown_lube_state = False
-
-    return False, pause, pause_old, countdown_up_time, countdown_slow_rate_time, old_countdown_direction, countdown_direction, \
-        new_countdown_direction, old_countdown_phase, countdown_phase, new_countdown_phase, countdown_cuss, countdown_cuss_state, \
-        countdown_lube, countdown_lube_state
+    countdown_cuss = read_file(clock_cuss, float)
+    countdown_cuss_state = read_file(clock_cuss_state, bool)
+    countdown_lube = read_file(clock_lube, float)
+    countdown_lube_state = read_file(clock_lube_state, bool)
+    return add, pause, pause_old, countdown_up_time, countdown_slow_rate_time, \
+        old_countdown_direction, countdown_direction, new_countdown_direction, \
+        old_countdown_phase, countdown_phase, new_countdown_phase, countdown_cuss, \
+        countdown_cuss_state, countdown_lube, countdown_lube_state
 
 
 def drop_zero(n: Decimal):
@@ -347,8 +320,8 @@ def drop_zero(n: Decimal):
 
 
 async def flash_window(event_type: str):
-    flash_frequency = int(read_flash_frequency())
-    flash_speed = float(read_flash_speed())
+    flash_frequency = read_file(bot_flash_frequency, int)
+    flash_speed = read_file(bot_flash_speed, float)
     if event_type == "twitch":
         colour = "57"
     elif event_type == "attn":
@@ -382,7 +355,6 @@ async def full_shutdown(logger_list):
         except Exception as e:
             print(e)
             pass
-    # quit(420)
 
 
 def loop_get_user_input_clock():
@@ -495,100 +467,39 @@ def numberize(n: float, decimals: int = 2) -> str:
         else:
             n = n / 1000000000000000000000000000000000
             return is_negative_string + str(drop_zero(round_num(n, decimals))) + "De"
-
     else:
         return is_negative_string + str(n)
 
 
-def read_bot_raid():
-    with open(bot_raid_mode, "r") as file:
-        return file.read()
-
-
-def read_clock_time_phase_accel():
-    with open(clock_time_phase_accel, "r") as file:
-        return file.read()
-
-
-def read_clock_time_phase_slow():
-    with open(clock_time_phase_slow, "r") as file:
-        return file.read()
-
-
-def read_clock_up_time():
-    with open(clock_time_mode, "r") as file:
-        return file.read()
-
-
-def read_clock():
-    with open(clock, "r") as file:
-        return file.read()
-
-
-def read_clock_max():
-    with open(clock_max, "r") as file:
-        return file.read()
-
-
-def read_clock_pause():
-    with open(clock_pause, "r") as file:
-        return file.read()
-
-
-def read_clock_phase():
-    with open(clock_phase, "r") as file:
-        return file.read()
-
-
-def read_clock_total():
-    with open(clock_total, "r") as file:
-        return file.read()
-
-
-def read_clock_sofar():
-    with open(clock_sofar, "r") as file:
-        return file.read()
-
-
-def read_fish_pond():
-    with open(f"{data_bot}fish_rewards", "r") as file:
-        return len(file.read().splitlines())
-
-
-def read_flash_frequency():
-    with open(f"{data_bot}flash_frequency.txt", "r") as file:
-        return file.read()
-
-
-def read_flash_speed():
-    with open(f"{data_bot}flash_speed.txt", "r") as file:
-        return file.read()
-
-
-def read_night_mode():
-    with open(f"{data_bot}night_mode.txt", "r") as file:
-        state = file.read()
-    if state == "True":
-        return True
-    elif state == "False":
-        return False
-    else:
-        print(f"{fortime()}: Error in read_night_mode -- '{state}' is NOT True or False!!! {type(state)}")
-        return False
-
-
-def read_state_lube():
-    with open(clock_lube_state, "r") as file:
-        return file.read()
-
-
-def read_bot_minigames():
-    with open(bot_mini_games, "r") as file:
-        compare = file.read()
-    if compare == "True":
-        return True
-    else:
-        return False
+def read_file(file_name: str, return_type: any = str):
+    with open(file_name, "r", encoding="utf-8") as file:
+        variable = file.read()
+    try:
+        if return_type == bool:
+            if variable == "True":
+                return True
+            elif variable == "False":
+                return False
+            else:
+                return f"ValueError Converting {variable} to {return_type}"
+        elif type(return_type) == list:
+            if return_type[1] == "split":
+                variable = variable.split(return_type[2], maxsplit=return_type[3])
+            elif return_type[1] == "splitlines":
+                variable = variable.splitlines()
+            if return_type[0] == map:
+                return list(map(str, variable))
+            else:
+                return list(variable)
+        elif return_type in (int, float):
+            variable = float(variable)
+            if return_type == float:
+                return variable
+            return int(variable)
+        else:
+            return str(variable)
+    except ValueError:
+        return f"ValueError Converting {variable} to {return_type}"
 
 
 def reset_bot_raid():
@@ -647,7 +558,7 @@ def reset_clock_pause(obs: WebsocketsManager = None):
 
 def reset_clock_accel_rate(obs: WebsocketsManager = None):
     while True:
-        user_input = input(f"Enter 1 to add to ACCEL rate timer\nEnter 0 to go back\n")
+        user_input = input(f"Enter 1 to add to ACCEL rate timer\nEnter 2 to remove from ACCEL rate timer\nEnter 0 to go back\n")
         if not user_input.isdigit():
             print(f"You must enter just a number")
         else:
@@ -667,13 +578,31 @@ def reset_clock_accel_rate(obs: WebsocketsManager = None):
                         break
                     else:
                         print(f"Invalid Input -- You put {new_rate} -- which is a {type(new_rate)}")
+            elif user_input == 2:
+                while True:
+                    new_rate = input("Enter take away seconds;\n")
+                    if new_rate.isdigit():
+                        new_total = write_clock_time_phase_accel(-abs(float(new_rate)))
+                        if new_total > 0:
+                            phase = "accel"
+                        elif read_file(clock_time_phase_slow, float) > 0:
+                            phase = "slow"
+                        else:
+                            phase = "norm"
+                        write_clock_phase(phase)
+                        if obs is not None:
+                            set_timer_rate(obs, phase)
+                        print(f"Removed {new_rate} seconds, f'{str(datetime.timedelta(seconds=new_total)).title()} remaining. CurrentPhase; {phase}")
+                    else:
+                        print(f"Invalid Input -- You put {new_rate} which is a {type(new_rate)}")
+
             else:
                 print(f"You must enter a number, you put {user_input} which is a {type(user_input)}")
 
 
 def reset_clock_slow_rate(obs: WebsocketsManager = None):
     while True:
-        user_input = input(f"Enter 1 to change current countdown SLOW rate\nEnter 0 to go back\n")
+        user_input = input(f"Enter 1 to add to countdown SLOW rate timer\nEnter 2 to remove from SLOW rate timer\nEnter 0 to go back\n")
         if not user_input.isdigit():
             print(f"You must enter just a number")
         else:
@@ -693,6 +622,23 @@ def reset_clock_slow_rate(obs: WebsocketsManager = None):
                         break
                     else:
                         print(f"Invalid Input -- You put {new_rate} -- which is a {type(new_rate)}")
+            elif user_input == 2:
+                while True:
+                    new_rate = input("Enter take away seconds;\n")
+                    if new_rate.isdigit():
+                        new_total = write_clock_time_phase_slow(-abs(float(new_rate)))
+                        if new_total > 0:
+                            phase = "slow"
+                        elif read_file(clock_time_phase_accel, float) > 0:
+                            phase = "accel"
+                        else:
+                            phase = "norm"
+                        write_clock_phase(phase)
+                        if obs is not None:
+                            set_timer_rate(obs, phase)
+                        print(f"Removed {new_rate} seconds, f'{str(datetime.timedelta(seconds=new_total)).title()} remaining. CurrentPhase; {phase}")
+                    else:
+                        print(f"Invalid Input -- You put {new_rate} which is a {type(new_rate)}")
             else:
                 print(f"You must enter a number, you put {user_input} which is a {type(user_input)}")
 
@@ -796,7 +742,7 @@ def reset_night_mode():
                 break
             elif user_input == 1:
                 new_state = False
-                current_state = read_night_mode()
+                current_state = read_file(bot_night_mode, bool)
                 if not current_state:
                     new_state = True
                 write_night_mode(new_state)
@@ -888,24 +834,26 @@ def set_timer_count_up(obs: WebsocketsManager, time_left: float):
 
 
 def set_timer_pause(obs: WebsocketsManager, show: any = None):
-    obs.set_text(obs_timer_pause, f"Paused; {str(datetime.timedelta(seconds=int(float(read_clock_pause())))).title()}")
+    obs.set_text(obs_timer_pause, f"Paused; {str(datetime.timedelta(seconds=read_file(clock_pause, int))).title()}")
     if show is not None:
         obs.set_source_visibility(obs_timer_scene, obs_timer_pause, show)
 
 
 def set_timer_rate(obs: WebsocketsManager, phase: str = "norm"):
     if phase == "slow":
-        time_left = float(read_clock_time_phase_slow())
+        time_left = read_file(clock_time_phase_slow, int)
     elif phase == "accel":
-        time_left = float(read_clock_time_phase_accel())
+        time_left = read_file(clock_time_phase_accel, int)
     else:
         time_left = 0
     obs.set_text(obs_timer_rate, f"{int(countdown_rate_strict) if phase == 'slow' else int(float(strict_pause))} Real Sec/{int(float(strict_pause)) if phase == 'slow' else int(countdown_rate_strict)} Timer Sec; {str(datetime.timedelta(seconds=time_left)).title()}")
 
 
-def set_timer_so_far(obs: WebsocketsManager, current_sofar: float = float(read_clock_sofar())):
+def set_timer_so_far(obs: WebsocketsManager, current_sofar: int = None):
+    if current_sofar is None:
+        current_sofar = read_file(clock_sofar, int)
     time_now = datetime.datetime.now()
-    obs.set_text(obs_timer_sofar, f"{str(datetime.timedelta(seconds=int(current_sofar))).title()}")
+    obs.set_text(obs_timer_sofar, f"{str(datetime.timedelta(seconds=current_sofar)).title()}")
     obs.set_text(obs_timer_systime, f"{str(time_now.strftime(f'%b %d')).capitalize()}, {str(time_now.strftime('%I:%M:%S%p')).lower().removeprefix('0')}")
 
 
@@ -949,16 +897,6 @@ def write_clock_cuss(value: float):
     return new_current
 
 
-def write_clock_ice(value: float):
-    with open(clock_ice_state, "w") as file:
-        file.write("True")
-    with open(clock_ice, "r") as file:
-        new_current = float(file.read()) + value
-    with open(clock_ice, "w") as file:
-        file.write(str(new_current))
-    return new_current
-
-
 def write_clock_lube(value: float):
     with open(clock_lube_state, "w") as file:
         file.write("True")
@@ -982,6 +920,8 @@ def write_clock_time_phase_accel(value: float):
     with open(clock_time_phase_accel, "r") as file:
         current_accel_time = float(file.read())
     new_accel_time = current_accel_time + value
+    if new_accel_time < 0:
+        new_accel_time = 0.0
     with open(clock_time_phase_accel, "w") as file:
         file.write(str(new_accel_time))
     return new_accel_time
@@ -991,6 +931,8 @@ def write_clock_time_phase_slow(value: float):
     with open(clock_time_phase_slow, "r") as file:
         current_slow_time = float(file.read())
     new_slow_time = current_slow_time + value
+    if new_slow_time < 0:
+        new_slow_time = 0.0
     with open(clock_time_phase_slow, "w") as file:
         file.write(str(new_slow_time))
     return new_slow_time
@@ -1031,22 +973,22 @@ def write_night_mode(new_state: bool):
 
 
 def write_sofar(second: float, obs: WebsocketsManager = None):
-    current_sofar = float(read_clock_sofar()) + second
+    current_sofar = read_file(clock_sofar, float) + second
     with open(clock_sofar, "w") as file:
         file.write(str(current_sofar))
     if obs is not None:
-        set_timer_so_far(obs, current_sofar)
+        set_timer_so_far(obs, int(current_sofar))
 
 
 def write_clock(seconds: float, logger: logging, add: bool = False, obs: WebsocketsManager = None, countdown: bool = False, manual: bool = False):
     try:
         formatted_missed_seconds = None
-        current_seconds = float(read_clock())
-        if read_state_lube() == "True" and not countdown:
+        current_seconds = read_file(clock, float)
+        if read_file(clock_lube_state, bool) and not countdown:
             seconds *= rate_lube
         if add:
-            max_seconds = float(read_clock_max())
-            total_seconds = float(read_clock_total()) + seconds
+            max_seconds = read_file(clock_max, float)
+            total_seconds = read_file(clock_total, float) + seconds
             if total_seconds > max_seconds:
                 seconds_to_subtract = abs(total_seconds - max_seconds)
                 seconds -= seconds_to_subtract
@@ -1071,24 +1013,13 @@ def write_clock(seconds: float, logger: logging, add: bool = False, obs: Websock
         if obs is not None:
             obs.set_text(obs_timer_main, str(datetime.timedelta(seconds=int(current_seconds))).title())
         if countdown:
-            # if obs is not None:
-            #     obs.set_text(obs_timer_main, str(datetime.timedelta(seconds=int(current_seconds))).title())
             write_sofar(1, obs)
             return current_seconds
         else:
-            # if obs is not None:
-            #     obs.set_text(obs_timer_main, str(datetime.timedelta(seconds=int(current_seconds))).title())
             return seconds, formatted_missed_seconds
     except ValueError:
         logger.error(f"{fortime()}: WRITE_CLOCK; ValueError detected!! Returning None, None")
         return None, None
-        # print(f"Attempted to go negative time")
-        # with open(clock, "r") as read:
-        #     old_time = read.read()
-        # with open(clock, "w") as file:
-        #     file.write(clock_reset_time)
-        # print(f"Overwrote to prevent issues. old time was: {old_time}({datetime.timedelta(seconds=int(float(old_time)))})")
-        # return None, None
     except Exception as e:
         logger.error(f"{fortime()}: WRITE_CLOCK; Something else went wrong -- {e}")
         return None, None
