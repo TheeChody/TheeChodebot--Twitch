@@ -39,9 +39,12 @@ class Channels(Document):
             "game_crash": 0
         },
         "joints": {
-            "smoked": 0,
-            "smoked_last": None,
-            "smoked_history": {}
+            "current_session": {
+                "last": None,
+                "start": None,
+                "total": 0
+            },
+            "session_history": {}
         },
         "stream": {
             "bot_restart": 0,
@@ -51,8 +54,7 @@ class Channels(Document):
     data_games = DictField(default={
         "fish_recast": [],
         "gamble": {
-            "total": 10000.0,
-            "viewers": {}
+            "total": 25000.0
         },
         "ranword": "",
         "tag": {
@@ -101,43 +103,14 @@ class Users(Document):
                 "cast": 0,
                 "catches": {},
                 "cost": 0,
+                "initiated": None
             },
             "line": {
                 "cast": False,
                 "caught_last": [],
                 "cut": False,
                 "cut_by": "",
-                "cut_last": None,
-                "stats": {
-                    "cost": 0,
-                    "effect": 0,
-                    "level": 0,
-                    "name": "Standard"
-                }
-            },
-            "lure": {
-                "cost": 0,
-                "effect": 0,
-                "level": 0,
-                "name": "Standard",
-                "pLow": 0,
-                "pHigh": 100
-            },
-            "reel": {
-                "cost": 0,
-                "effect": 0,
-                "level": 0,
-                "name": "Standard",
-                "pLow": 0,
-                "pHigh": 100
-            },
-            "rod": {
-                "cost": 0,
-                "effect": 0,
-                "level": 0,
-                "name": "Standard",
-                "pLow": 0,
-                "pHigh": 100
+                "cut_last": None
             },
             "special": {
                 "ice": 0,
@@ -155,7 +128,21 @@ class Users(Document):
                 "manual": {
                     "catches": {}
                 }
+            },
+            "upgrade": {
+                "line": 0,
+                "lure": 0,
+                "reel": 0,
+                "rod": 0
             }
+        },
+        "gamble": {
+            "total": 0,
+            "won": 0,
+            "lost": 0,
+            "total_won": 0.0,
+            "total_lost": 0.0,
+            "last": None
         },
         "iq": {
             "current": 0.0,
@@ -231,6 +218,10 @@ class Users(Document):
             "total": 0,
             "success": 0,
             "fail": 0
+        },
+        "unoreverse": {
+            "reverse": 0,
+            "command": "jail"
         }
     })
     data_user = DictField(default={
