@@ -2,18 +2,266 @@ import os
 import time
 import asyncio
 import datetime
-from functions import clock, clock_max, clock_pause, clock_total, clock_reset_time, read_clock, \
+from functions import clock, clock_max, clock_pause, clock_total, clock_reset_time, \
     write_clock, reset_max_time, reset_total_time, reset_current_time, loop_get_user_input_clock, reset_sofar_time, \
-    clock_sofar, reset_clock_slow_rate, reset_clock_pause, WebsocketsManager, read_clock_max, fortime, setup_logger, \
-    full_shutdown, read_clock_sofar, cls, write_clock_phase_slow_rate, reset_clock_accel_rate, clock_time_mode, \
-    read_clock_time_phase_accel, read_clock_time_phase_slow, clock_phase, strict_pause, countdown_rate_strict, clock_time_phase_accel, \
+    clock_sofar, reset_clock_slow_rate, reset_clock_pause, WebsocketsManager, fortime, setup_logger, \
+    full_shutdown, cls, write_clock_phase_slow_rate, reset_clock_accel_rate, clock_time_mode, \
+    clock_phase, strict_pause, countdown_rate_strict, clock_time_phase_accel, \
     clock_time_phase_slow, set_timer_rate, set_timer_count_up, set_timer_pause, obs_timer_main, obs_timer_sofar, obs_timer_scene, \
     obs_timer_rate, obs_timer_countup, clock_mode, define_countdown, write_sofar, clock_phase_old, clock_mode_old, clock_pause_old, \
     obs_timer_pause, clock_phase_slow_rate, clock_cuss_state, clock_lube_state, obs_timer_cuss, obs_timer_lube, clock_lube, clock_cuss, \
-    set_timer_lube, set_timer_cuss
+    set_timer_lube, set_timer_cuss, read_file
 
+# ToDO List--------------------------------------------------------------------------------------------------------------------------------
+#  -- 1; Add dictionary style tracker for 'ban-a-word card' separate timers...
+#  -- 2; Rework everything and separate all 'sections' into functions and call when needed to allow
+#  for self correction to also call upon functions to correct for larger than 1 second hiccups
+#  End of List-----------------------------------------------------------------------------------------------------------------------------
 logger_list = []
 slash_list = ["\\", "|", "/", "|"]
+
+
+# def countdown(total_seconds: float):
+#     def define_slash(rotation: int):
+#         if rotation + 1 > len(slash_list):
+#             rotation = 0
+#         slash = slash_list[rotation]
+#         rotation += 1
+#         return slash, rotation
+#
+#     def check_phase(countdown_phase: str, old_countdown_phase: str):
+#         if countdown_phase != old_countdown_phase:
+#             with open(clock_phase_old, "w") as file:
+#                 file.write(countdown_phase)
+#             if countdown_phase == "norm":
+#                 obs.set_source_visibility(obs_timer_scene, obs_timer_rate, False)
+#             else:
+#                 set_timer_rate(obs, countdown_phase)
+#
+#     def check_direction(countdown_direction: str, old_countdown_direction: str):
+#         if countdown_direction == "down" != old_countdown_direction:
+#             with open(clock_mode_old, "w") as file:
+#                 file.write(countdown_direction)
+#             obs.set_source_visibility(obs_timer_scene, obs_timer_countup, False)
+#
+#     def check_pause(pause_old: str):
+#         if pause_old:
+#             with open(clock_pause_old, "w") as file:
+#                 file.write("False")
+#             obs.set_source_visibility(obs_timer_scene, obs_timer_pause, False)
+#
+#     def run_not_paused():
+#         countdown_direction, new_countdown_direction, countdown_up_time, countdown_phase, new_countdown_phase, countdown_slow_rate_time = define_not_paused()
+#         if countdown_direction == "up":
+#             add = True
+#             countdown_up_time -= strict_pause
+#             if countdown_up_time <= 0:
+#                 countdown_up_time = 0
+#                 new_countdown_direction = "down"
+#             with open(clock_time_mode, "w") as file:
+#                 file.write(str(countdown_up_time))
+#             set_timer_count_up(obs, countdown_up_time)
+#         if countdown_phase == "slow":
+#             phase = "Slow"
+#             countdown_slow_time = read_file(clock_time_phase_slow, float) - strict_pause
+#             if countdown_slow_time <= 0:
+#                 countdown_slow_time = 0
+#                 if read_file(clock_time_phase_accel, float) > 0:
+#                     new_countdown_phase = "accel"
+#                 else:
+#                     new_countdown_phase = "norm"
+#             with open(clock_time_phase_slow, "w") as file:
+#                 file.write(str(countdown_slow_time))
+#             set_timer_rate(obs, countdown_phase)
+#             if countdown_slow_rate_time <= 1.0:
+#                 sec_manip = strict_pause
+#                 countdown_slow_rate_time = countdown_rate_strict
+#                 write_clock_phase_slow_rate(countdown_rate_strict)
+#             else:
+#                 countdown_slow_rate_time -= strict_pause
+#                 write_clock_phase_slow_rate(countdown_slow_rate_time)
+#                 sec_manip = 0.0
+#         elif countdown_phase == "accel":
+#             phase = "Xcel"
+#             sec_manip = countdown_rate_strict
+#             # countdown_accel_time = float(read_clock_time_phase_accel()) - strict_pause
+#             countdown_accel_time = read_file(clock_time_phase_accel, float) - strict_pause
+#             if countdown_accel_time <= 0:
+#                 countdown_accel_time = 0
+#                 if read_file(clock_time_phase_slow, float) > 0:
+#                     new_countdown_phase = "slow"
+#                 else:
+#                     new_countdown_phase = "norm"
+#             with open(clock_time_phase_accel, "w") as file:
+#                 file.write(str(countdown_accel_time))
+#             set_timer_rate(obs, countdown_phase)
+#         else:
+#             sec_manip = strict_pause
+#             phase = "Norm"
+#         total_seconds = write_clock(sec_manip, logger, add, obs, True, False)
+#         if total_seconds is None:
+#             logger.error(f"{fortime()}: ValueError/Another Error Occurred in write_clock, exiting CountDown to preserve data")
+#             shutdown()
+#         if countdown_phase != new_countdown_phase:
+#             with open(clock_phase_old, "w") as file:
+#                 file.write(countdown_phase)
+#             with open(clock_phase, "w") as file:
+#                 file.write(new_countdown_phase)
+#         if countdown_direction == "up" and new_countdown_direction == "down":
+#             with open(clock_mode_old, "w") as file:
+#                 file.write(countdown_direction)
+#             with open(clock_mode, "w") as file:
+#                 file.write(new_countdown_direction)
+#
+#     keyboard_interrupt = False
+#     rotation = 0
+#     start_time = time.perf_counter()
+#     while total_seconds >= 1.0:
+#         try:
+#             if keyboard_interrupt:
+#                 logger.info(f"{fortime()}: KeyBoard Interrupt Detected.. Exiting Countdown...")
+#                 break
+#             # add, pause, pause_old, countdown_up_time, countdown_slow_rate_time, old_countdown_direction, countdown_direction, \
+#             #     new_countdown_direction, old_countdown_phase, countdown_phase, new_countdown_phase, countdown_cuss, countdown_cuss_state, \
+#             #     countdown_lube, countdown_lube_state = define_countdown()
+#             countdown_phase,
+#             check_phase(countdown_phase, old_countdown_phase)
+#             check_direction(countdown_direction, old_countdown_direction)
+#             check_pause(pause_old)
+#             # if countdown_phase != old_countdown_phase:
+#             #     with open(clock_phase_old, "w") as file:
+#             #         file.write(countdown_phase)
+#             #     if countdown_phase == "norm":
+#             #         obs.set_source_visibility(obs_timer_scene, obs_timer_rate, False)
+#             #     else:
+#             #         set_timer_rate(obs, countdown_phase)
+#             # if countdown_direction == "down" != old_countdown_direction:
+#             #     with open(clock_mode_old, "w") as file:
+#             #         file.write(countdown_direction)
+#             #     obs.set_source_visibility(obs_timer_scene, obs_timer_countup, False)
+#             # if pause_old:
+#             #     with open(clock_pause_old, "w") as file:
+#             #         file.write("False")
+#             #     obs.set_source_visibility(obs_timer_scene, obs_timer_pause, False)
+#
+#             if pause == 0:
+#                 run_not_paused()
+#                 # if countdown_direction == "up":
+#                 #     add = True
+#                 #     countdown_up_time -= strict_pause
+#                 #     if countdown_up_time <= 0:
+#                 #         countdown_up_time = 0
+#                 #         new_countdown_direction = "down"
+#                 #     with open(clock_time_mode, "w") as file:
+#                 #         file.write(str(countdown_up_time))
+#                 #     set_timer_count_up(obs, countdown_up_time)
+#                 # if countdown_phase == "slow":
+#                 #     phase = "Slow"
+#                 #     countdown_slow_time = read_file(clock_time_phase_slow, float) - strict_pause
+#                 #     if countdown_slow_time <= 0:
+#                 #         countdown_slow_time = 0
+#                 #         if read_file(clock_time_phase_accel, float) > 0:
+#                 #             new_countdown_phase = "accel"
+#                 #         else:
+#                 #             new_countdown_phase = "norm"
+#                 #     with open(clock_time_phase_slow, "w") as file:
+#                 #         file.write(str(countdown_slow_time))
+#                 #     set_timer_rate(obs, countdown_phase)
+#                 #     if countdown_slow_rate_time <= 1.0:
+#                 #         sec_manip = strict_pause
+#                 #         countdown_slow_rate_time = countdown_rate_strict
+#                 #         write_clock_phase_slow_rate(countdown_rate_strict)
+#                 #     else:
+#                 #         countdown_slow_rate_time -= strict_pause
+#                 #         write_clock_phase_slow_rate(countdown_slow_rate_time)
+#                 #         sec_manip = 0.0
+#                 # elif countdown_phase == "accel":
+#                 #     phase = "Xcel"
+#                 #     sec_manip = countdown_rate_strict
+#                 #     # countdown_accel_time = float(read_clock_time_phase_accel()) - strict_pause
+#                 #     countdown_accel_time = read_file(clock_time_phase_accel, float) - strict_pause
+#                 #     if countdown_accel_time <= 0:
+#                 #         countdown_accel_time = 0
+#                 #         if read_file(clock_time_phase_slow, float) > 0:
+#                 #             new_countdown_phase = "slow"
+#                 #         else:
+#                 #             new_countdown_phase = "norm"
+#                 #     with open(clock_time_phase_accel, "w") as file:
+#                 #         file.write(str(countdown_accel_time))
+#                 #     set_timer_rate(obs, countdown_phase)
+#                 # else:
+#                 #     sec_manip = strict_pause
+#                 #     phase = "Norm"
+#                 # total_seconds = write_clock(sec_manip, logger, add, obs, True, False)
+#                 # if total_seconds is None:
+#                 #     logger.error(f"{fortime()}: ValueError/Another Error Occurred in write_clock, exiting CountDown to preserve data")
+#                 #     shutdown()
+#                 # if countdown_phase != new_countdown_phase:
+#                 #     with open(clock_phase_old, "w") as file:
+#                 #         file.write(countdown_phase)
+#                 #     with open(clock_phase, "w") as file:
+#                 #         file.write(new_countdown_phase)
+#                 # if countdown_direction == "up" and new_countdown_direction == "down":
+#                 #     with open(clock_mode_old, "w") as file:
+#                 #         file.write(countdown_direction)
+#                 #     with open(clock_mode, "w") as file:
+#                 #         file.write(new_countdown_direction)
+#             else:
+#                 total_seconds = read_file(clock, float)
+#                 phase = "Pauz"
+#                 pause -= strict_pause
+#                 if pause <= 0:
+#                     pause = 0.0
+#                     with open(clock_pause_old, "w") as file:
+#                         file.write("True")
+#                 with open(clock_pause, "w") as file:
+#                     file.write(str(pause))
+#                 write_sofar(1, obs)
+#                 set_timer_pause(obs)
+#             if countdown_cuss_state and countdown_cuss == 0:
+#                 with open(clock_cuss_state, "w") as file:
+#                     file.write("False")
+#                 obs.set_source_visibility(obs_timer_scene, obs_timer_cuss, False)
+#             elif countdown_cuss > 0:
+#                 countdown_cuss -= 1
+#                 if countdown_cuss <= 0:
+#                     countdown_cuss = 0
+#                 with open(clock_cuss, "w") as file:
+#                     file.write(str(countdown_cuss))
+#                 set_timer_cuss(obs, countdown_cuss)
+#             if countdown_lube_state and countdown_lube == 0:
+#                 with open(clock_lube_state, "w") as file:
+#                     file.write("False")
+#                 obs.set_source_visibility(obs_timer_scene, obs_timer_lube, False)
+#             elif countdown_lube > 0:
+#                 countdown_lube -= 1
+#                 if countdown_lube <= 0:
+#                     countdown_lube = 0
+#                 with open(clock_lube, "w") as file:
+#                     file.write(str(countdown_lube))
+#                 set_timer_lube(obs, countdown_lube)
+#
+#             time_now = datetime.datetime.now()
+#             time_sofar = read_file(clock_sofar, float)
+#             slash, rotation = define_slash(rotation)
+#             logger.info(f"{total_seconds:.2f}{slash}{str(datetime.timedelta(seconds=int(total_seconds))).title()} | {phase}{slash}{f'{int(countdown_slow_rate_time)}{slash}{str(datetime.timedelta(seconds=read_file(clock_time_phase_slow, int))).title()}' if phase == 'Slow' else f'{int(countdown_rate_strict)}{slash}{str(datetime.timedelta(seconds=read_file(clock_time_phase_accel, int))).title()}' if phase == 'Xcel' else f'1{slash}{str(datetime.timedelta(seconds=int(pause))).title()}' if phase == 'Pauz' else f'1{slash}0:00:00'} | {f'Up{slash}{str(datetime.timedelta(seconds=int(countdown_up_time))).title()}' if countdown_direction == 'up' else f'Dn{slash}0:00:00'} | Cu{slash}{str(datetime.timedelta(seconds=countdown_cuss)).title()} | Lu{slash}{str(datetime.timedelta(seconds=countdown_lube)).title()} | {time_sofar}{slash}{str(datetime.timedelta(seconds=time_sofar)).title()} | {str(time_now.strftime(f'%b %d')).capitalize()}, {str(time_now.strftime('%I:%M:%S%p')).lower().removeprefix('0')} | {f'{strict_pause - ((time.perf_counter() - start_time) % strict_pause):.40f}'.removeprefix('0')}")
+#             time.sleep(strict_pause - ((time.perf_counter() - start_time) % strict_pause))
+#
+#         except ValueError:
+#             logger.error(f"{fortime()}: Error in countdown -- ValueError detected!! Shutting down to preserve data")
+#             shutdown()
+#         except KeyboardInterrupt:
+#             keyboard_interrupt = True
+#             continue
+#             # logger.info(f"{fortime()}: Exiting countdown...")
+#             # break
+#     logger.info(f"{str(datetime.timedelta(seconds=read_file(clock, float))).title()} {total_seconds} TESTING STUFFS")
+#     if total_seconds <= 0:
+#         logger.info("Thee countdown has reached zero seconds! Writing Reset Time!")
+#         with open(clock, "w") as file:
+#             file.write(clock_reset_time)
+#         obs.set_text(obs_timer_main, f"Thee Timer Has Hit Zero. Much Love To All <3")
+#         shutdown()
 
 
 def countdown(total_seconds: float):
@@ -23,10 +271,15 @@ def countdown(total_seconds: float):
         slash = slash_list[rotation]
         rotation += 1
         return slash, rotation
+
+    keyboard_interrupt = False
     rotation = 0
     start_time = time.perf_counter()
     while total_seconds >= 1.0:
         try:
+            if keyboard_interrupt:
+                logger.info(f"{fortime()}: KeyBoard Interrupt Detected.. Exiting Countdown...")
+                break
             add, pause, pause_old, countdown_up_time, countdown_slow_rate_time, old_countdown_direction, countdown_direction, \
                 new_countdown_direction, old_countdown_phase, countdown_phase, new_countdown_phase, countdown_cuss, countdown_cuss_state, \
                 countdown_lube, countdown_lube_state = define_countdown()
@@ -57,10 +310,10 @@ def countdown(total_seconds: float):
                     set_timer_count_up(obs, countdown_up_time)
                 if countdown_phase == "slow":
                     phase = "Slow"
-                    countdown_slow_time = float(read_clock_time_phase_slow()) - strict_pause
+                    countdown_slow_time = read_file(clock_time_phase_slow, float) - strict_pause
                     if countdown_slow_time <= 0:
                         countdown_slow_time = 0
-                        if float(read_clock_time_phase_accel()) > 0:
+                        if read_file(clock_time_phase_accel, float) > 0:
                             new_countdown_phase = "accel"
                         else:
                             new_countdown_phase = "norm"
@@ -78,10 +331,11 @@ def countdown(total_seconds: float):
                 elif countdown_phase == "accel":
                     phase = "Xcel"
                     sec_manip = countdown_rate_strict
-                    countdown_accel_time = float(read_clock_time_phase_accel()) - strict_pause
+                    # countdown_accel_time = float(read_clock_time_phase_accel()) - strict_pause
+                    countdown_accel_time = read_file(clock_time_phase_accel, float) - strict_pause
                     if countdown_accel_time <= 0:
                         countdown_accel_time = 0
-                        if float(read_clock_time_phase_slow()) > 0:
+                        if read_file(clock_time_phase_slow, float) > 0:
                             new_countdown_phase = "slow"
                         else:
                             new_countdown_phase = "norm"
@@ -106,7 +360,7 @@ def countdown(total_seconds: float):
                     with open(clock_mode, "w") as file:
                         file.write(new_countdown_direction)
             else:
-                total_seconds = float(read_clock())
+                total_seconds = read_file(clock, float)
                 phase = "Pauz"
                 pause -= strict_pause
                 if pause <= 0:
@@ -140,16 +394,19 @@ def countdown(total_seconds: float):
                     file.write(str(countdown_lube))
                 set_timer_lube(obs, countdown_lube)
             time_now = datetime.datetime.now()
-            time_sofar = float(read_clock_sofar())
+            time_sofar = read_file(clock_sofar, float)
             slash, rotation = define_slash(rotation)
-            logger.info(f"{total_seconds:.2f}{slash}{str(datetime.timedelta(seconds=int(total_seconds))).title()} | {phase}{slash}{f'{int(countdown_slow_rate_time)}{slash}{str(datetime.timedelta(seconds=int(float(read_clock_time_phase_slow())))).title()}' if phase == 'Slow' else f'{int(countdown_rate_strict)}{slash}{str(datetime.timedelta(seconds=int(float(read_clock_time_phase_accel())))).title()}' if phase == 'Xcel' else f'1{slash}{str(datetime.timedelta(seconds=int(pause))).title()}' if phase == 'Pauz' else f'1{slash}0:00:00'} | {f'Up{slash}{str(datetime.timedelta(seconds=int(countdown_up_time))).title()}' if countdown_direction == 'up' else f'Dn{slash}0:00:00'} | Cu{slash}{str(datetime.timedelta(seconds=countdown_cuss)).title()} | Lu{slash}{str(datetime.timedelta(seconds=countdown_lube)).title()} | {time_sofar}{slash}{str(datetime.timedelta(seconds=time_sofar)).title()} | {str(time_now.strftime(f'%b %d')).capitalize()}, {str(time_now.strftime('%I:%M:%S%p')).lower().removeprefix('0')} | {f'{strict_pause - ((time.perf_counter() - start_time) % strict_pause):.40f}'.removeprefix('0')}")
+            logger.info(f"{total_seconds:.2f}{slash}{str(datetime.timedelta(seconds=int(total_seconds))).title()} | {phase}{slash}{f'{int(countdown_slow_rate_time)}{slash}{str(datetime.timedelta(seconds=read_file(clock_time_phase_slow, int))).title()}' if phase == 'Slow' else f'{int(countdown_rate_strict)}{slash}{str(datetime.timedelta(seconds=read_file(clock_time_phase_accel, int))).title()}' if phase == 'Xcel' else f'1{slash}{str(datetime.timedelta(seconds=int(pause))).title()}' if phase == 'Pauz' else f'1{slash}0:00:00'} | {f'Up{slash}{str(datetime.timedelta(seconds=int(countdown_up_time))).title()}' if countdown_direction == 'up' else f'Dn{slash}0:00:00'} | Cu{slash}{str(datetime.timedelta(seconds=countdown_cuss)).title()} | Lu{slash}{str(datetime.timedelta(seconds=countdown_lube)).title()} | {time_sofar}{slash}{str(datetime.timedelta(seconds=time_sofar)).title()} | {str(time_now.strftime(f'%b %d')).capitalize()}, {str(time_now.strftime('%I:%M:%S%p')).lower().removeprefix('0')} | {f'{strict_pause - ((time.perf_counter() - start_time) % strict_pause):.40f}'.removeprefix('0')}")
             time.sleep(strict_pause - ((time.perf_counter() - start_time) % strict_pause))
         except ValueError:
             logger.error(f"{fortime()}: Error in countdown -- ValueError detected!! Shutting down to preserve data")
             shutdown()
         except KeyboardInterrupt:
-            break
-    logger.info(f"{str(datetime.timedelta(seconds=float(read_clock()))).title()} {total_seconds} TESTING STUFFS")
+            keyboard_interrupt = True
+            continue
+            # logger.info(f"{fortime()}: Exiting countdown...")
+            # break
+    logger.info(f"{str(datetime.timedelta(seconds=read_file(clock, float))).title()} {total_seconds} TESTING STUFFS")
     if total_seconds <= 0:
         logger.info("Thee countdown has reached zero seconds! Writing Reset Time!")
         with open(clock, "w") as file:
@@ -168,7 +425,6 @@ def shutdown(obs_connected: bool = True):
 
 
 if __name__ == "__main__":
-    os.system(f"color 02")
     init_time = fortime().replace(' ', '--').replace(':', '-')
     logger = setup_logger('countdown_logger', f'countdown_log--{init_time}.log', logger_list)
     try:
@@ -238,7 +494,7 @@ if __name__ == "__main__":
                     print(f"Max time set successfully as {str(datetime.timedelta(seconds=int(max_seconds))).title()} - {max_seconds}")
                     break
         else:
-            if float(read_clock_max()) == 0.0:
+            if read_file(clock_max, float) == 0.0:
                 while True:
                     cls()
                     max_seconds = input(f"Enter new max time for marathon\n")
@@ -280,17 +536,18 @@ if __name__ == "__main__":
                         user_seconds, add = loop_get_user_input_clock()
                         cls()
                         try:
-                            if user_seconds.isdigit():
-                                write_clock(float(user_seconds), logger, add, obs=obs, manual=True)
-                                obs.set_text(obs_timer_sofar, str(datetime.timedelta(seconds=float(read_clock_sofar()))).title())
-                                input("Hit ENTER To Start Thee Timer!\n")
-                                total_seconds = float(read_clock())
-                                cls()
-                                logger.info(f"{total_seconds} -- {str(datetime.timedelta(seconds=int(total_seconds))).title()}")  # DEBUGGING -- ++ 2 lines above -- otherwise countdown(float(read_clock()))
-                                countdown(total_seconds)
-                                # countdown(float(read_clock()))  # For Run
-                            else:
-                                print(f"{user_seconds} isn't valid, try just numbers.")
+                            user_seconds = float(user_seconds)
+                            if user_seconds != 0:
+                                write_clock(user_seconds, logger, add, obs=obs, manual=True)
+                            obs.set_text(obs_timer_sofar, str(datetime.timedelta(seconds=read_file(clock_sofar, int))).title())
+                            input("Hit ENTER To Start Thee Timer!\n")
+                            cls()
+                            total_seconds = read_file(clock, float)
+                            logger.info(f"{total_seconds} -- {str(datetime.timedelta(seconds=int(total_seconds))).title()}")  # DEBUGGING -- ++ 2 lines above -- otherwise countdown(float(read_clock()))
+                            countdown(total_seconds)
+                            # countdown(read_file(clock, float))  # For Run
+                        except ValueError:
+                            logger.error(f"ValueError!! {user_seconds} is not floatable")
                         except KeyboardInterrupt:
                             print(f"Exiting countdown")
                             break
