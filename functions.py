@@ -26,6 +26,7 @@ from decimal import Decimal
 from dotenv import load_dotenv
 from mongoengine import Document
 from obswebsocket import obsws, requests
+from mongoengine import connect, disconnect_all
 
 time_ice = 300
 time_lube = 300
@@ -48,6 +49,9 @@ obs_timer_sofar = os.getenv("obs_timer_sofar")
 obs_timer_systime = os.getenv("obs_timer_systime")
 obs_hype_ehvent = os.getenv("obs_hype_ehvent")
 
+mongo_login_string = os.getenv("monlog_string")  # MongoDB Login String
+mongo_twitch_collection = os.getenv("montwi_string")  # Mongo Collection To Use
+
 if getattr(sys, 'frozen', False):
     application_path = f"{os.path.dirname(sys.executable)}\\_internal"
 else:
@@ -55,7 +59,7 @@ else:
 
 data_directory = f"{application_path}\\data\\"
 logs_directory = f"{application_path}\\logs\\"
-archive_logs_directory = f"{application_path}\\logs\\archive_log\\"
+archive_logs_directory = f"{logs_directory}archive_log\\"
 data_bot = f"{data_directory}bot\\"
 data_clock = f"{data_directory}clock\\"
 Path(data_directory).mkdir(parents=True, exist_ok=True)
@@ -72,7 +76,7 @@ standard_seconds = 3.6  # Base value -- For marathon related events
 standard_direct_dono = 7.0  # Base value -- For marathon related events
 
 nl = "\n"
-long_dashes = "------------------------------------------------------------------------------"
+long_dashes = "-------------------------------------------------------------------"
 bot_delete_phrases = f"{data_bot}delete_phrases.txt"
 bot_fish = f"{data_bot}fish_rewards"
 bot_flash_frequency = f"{data_bot}flash_frequency.txt"
@@ -101,6 +105,7 @@ clock_time_mode = f"{data_clock}time_mode.txt"
 clock_time_phase_accel = f"{data_clock}time_phase_accel.txt"
 clock_time_phase_slow = f"{data_clock}time_phase_slow.txt"
 clock_sofar = f"{data_clock}time_so_far.txt"
+clock_time_started = f"{data_clock}time_started.txt"
 clock_total = f"{data_clock}time_total_added.txt"
 
 
@@ -185,7 +190,7 @@ class WebsocketsManager:
         return self.ws.call(requests.GetSceneItemList(sceneName=scene_name))
 
 
-def check_hype_train(channel_document: Document, time_add: any):
+def check_hype_train(channel_document: Document, time_add=None):
     if time_add is None:
         if channel_document['data_channel']['hype_train']['current_level'] > 1:
             return (channel_document['data_channel']['hype_train']['current_level'] - 1) / 10 + standard_ehvent_mult
@@ -284,17 +289,39 @@ def configure_hype_ehvent(channel_document: Document, obs: WebsocketsManager):
                             break
 
 
+def connect_mongo(db, alias, logger):
+    try:
+        client = connect(db=db, host=mongo_login_string, alias=alias)
+        logger.info(f"{fortime()}: MongoDB Connected\n{long_dashes}")
+        time.sleep(1)
+        client.get_default_database(db)
+        logger.info(f"{fortime()}: Database Loaded")
+        return client
+    except Exception as e:
+        logger.error(f"{fortime()}: Error Connecting MongoDB -- {e}")
+        return None
+
+
+async def disconnect_mongo(logger):
+    try:
+        disconnect_all()
+        logger.info(f"{long_dashes}\nDisconnected from MongoDB")
+    except Exception as e:
+        logger.error(f"{fortime()}: Error Disconnection MongoDB -- {e}")
+        return
+
+
 def define_countdown():
     add = False
     pause = read_file(clock_pause, float)
     pause_old = read_file(clock_pause_old, bool)
     countdown_up_time = read_file(clock_time_mode, float)
     countdown_slow_rate_time = read_file(clock_phase_slow_rate, float)
-    old_countdown_direction = read_file(clock_mode_old)
-    countdown_direction = read_file(clock_mode)
+    old_countdown_direction = read_file(clock_mode_old, str)
+    countdown_direction = read_file(clock_mode, str)
     new_countdown_direction = countdown_direction
-    old_countdown_phase = read_file(clock_phase_old)
-    countdown_phase = read_file(clock_phase)
+    old_countdown_phase = read_file(clock_phase_old, str)
+    countdown_phase = read_file(clock_phase, str)
     new_countdown_phase = countdown_phase
     countdown_cuss = read_file(clock_cuss, float)
     countdown_cuss_state = read_file(clock_cuss_state, bool)
@@ -471,7 +498,7 @@ def numberize(n: float, decimals: int = 2) -> str:
         return is_negative_string + str(n)
 
 
-def read_file(file_name: str, return_type: any = str):
+def read_file(file_name: str, return_type: any) -> bool | float | int | list | str:
     with open(file_name, "r", encoding="utf-8") as file:
         variable = file.read()
     try:
@@ -833,7 +860,7 @@ def set_timer_count_up(obs: WebsocketsManager, time_left: float):
     obs.set_text(obs_timer_countup, f"CountUp; {str(datetime.timedelta(seconds=time_left)).title()}")
 
 
-def set_timer_pause(obs: WebsocketsManager, show: any = None):
+def set_timer_pause(obs: WebsocketsManager, show=None):
     obs.set_text(obs_timer_pause, f"Paused; {str(datetime.timedelta(seconds=read_file(clock_pause, int))).title()}")
     if show is not None:
         obs.set_source_visibility(obs_timer_scene, obs_timer_pause, show)
@@ -865,11 +892,11 @@ def set_hype_ehvent(obs: WebsocketsManager, mult: float, status: str = "Enabled"
     obs.set_source_visibility(obs_timer_scene, obs_hype_ehvent, value)
 
 
-def setup_logger(name: str, log_file: str, logger_list: list, level: logging = logging.INFO):
+def setup_logger(name: str, log_file: str, logger_list: list, level=logging.INFO):
     try:
         local_logger = logging.getLogger(name)
         handler = logging.FileHandler(f"{logs_directory}{log_file}", mode="w", encoding="utf-8")
-        if name in ("logger", "countdown_logger"):
+        if name in ("logger", "countdown_logger"):  #, "bingo_logger"):
             console_handler = logging.StreamHandler()
             local_logger.addHandler(console_handler)
         local_logger.setLevel(level)
@@ -980,7 +1007,7 @@ def write_sofar(second: float, obs: WebsocketsManager = None):
         set_timer_so_far(obs, int(current_sofar))
 
 
-def write_clock(seconds: float, logger: logging, add: bool = False, obs: WebsocketsManager = None, countdown: bool = False, manual: bool = False):
+def write_clock(seconds: float, logger, add: bool = False, obs: WebsocketsManager = None, countdown: bool = False, manual: bool = False):
     try:
         formatted_missed_seconds = None
         current_seconds = read_file(clock, float)
