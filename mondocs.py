@@ -25,6 +25,7 @@ class Channels(Document):
             "record_level": 0
         },
         "last_clip": None,
+        "restarting": False,
         "writing_clock": False
     })
     data_counters = DictField(default={
@@ -52,6 +53,17 @@ class Channels(Document):
         }
     })
     data_games = DictField(default={
+        "bingo": {
+            "current_game": {
+                "board_size": None,
+                "chosen_pattern": [],
+                "game_type": None,
+                "game_started_time": None,
+                "items_done": {},
+                "major_bingo_pot": 0
+            },
+            "history": {}
+        },
         "fish_recast": [],
         "gamble": {
             "total": 25000.0
@@ -77,6 +89,17 @@ class Users(Document):
     _id = StringField(primary_key=True)
     name = StringField(default="")
     data_games = DictField(default={
+        "bingo": {
+           "current_game": {
+               "game_board": {},
+               "game_type": None,
+               "joined_time": None,
+               "items_chosen": [],
+               "major_bingo": False,
+               "minor_bingo": False
+           },
+           "history": {}
+        },
         "fight": {
             # "streak": {
             #     "last": None,  # ToDo: Add Streak Counter For Win/Loss/Tied
@@ -113,6 +136,8 @@ class Users(Document):
                 "cut_last": None
             },
             "special": {
+                "buff_luck": 0,
+                "buff_speed": 0,
                 "ice": 0,
                 "lube": 0
             },
