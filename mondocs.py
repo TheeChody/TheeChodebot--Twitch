@@ -169,6 +169,16 @@ class Users(Document):
             "total_lost": 0.0,
             "last": None
         },
+        "heist": {
+            "gamble": {
+                "fail": 0,
+                "last": None,
+                "total": 0,
+                "total_stole": 0,
+                "total_spent": 0,
+                "success": 0
+            }
+        },
         "iq": {
             "current": 0.0,
             "last": None,
