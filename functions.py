@@ -62,6 +62,7 @@ logs_directory = f"{application_path}\\logs\\"
 archive_logs_directory = f"{logs_directory}archive_log\\"
 data_bot = f"{data_directory}bot\\"
 data_clock = f"{data_directory}clock\\"
+data_games = f"{data_bot}games\\"
 Path(data_directory).mkdir(parents=True, exist_ok=True)
 Path(logs_directory).mkdir(parents=True, exist_ok=True)
 Path(archive_logs_directory).mkdir(parents=True, exist_ok=True)
@@ -108,8 +109,11 @@ clock_sofar = f"{data_clock}time_so_far.txt"
 clock_time_started = f"{data_clock}time_started.txt"
 clock_total = f"{data_clock}time_total_added.txt"
 
+game_bingo_copshow = f"{data_games}bingo-copshow.txt"
+game_bingo_hellskitchen = f"{data_games}bingo-hellskitchen.txt"
 
-class WebsocketsManager:
+
+class OBSWebsocketsManager:
     ws = None
 
     def __init__(self):
@@ -209,7 +213,7 @@ def cls():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
-def configure_write_to_clock(channel_document: Document, obs: WebsocketsManager):
+def configure_write_to_clock(channel_document: Document, obs: OBSWebsocketsManager):
     if channel_document['data_channel']['writing_clock']:
         new_value = False
     else:
@@ -228,7 +232,7 @@ def configure_write_to_clock(channel_document: Document, obs: WebsocketsManager)
     print(f"Writing to clock is now {'EN' if new_value else 'DIS'}ABLED")
 
 
-def configure_hype_ehvent(channel_document: Document, obs: WebsocketsManager):
+def configure_hype_ehvent(channel_document: Document, obs: OBSWebsocketsManager):
     while True:
         user_input = input(f"Enter 1 to EN/DIS Able HypeEhVent\nEnter 2 to Configure HypeEhVent Level\nEnter 0 to go back\n")
         if not user_input.isdigit():
@@ -549,7 +553,7 @@ def reset_bot_raid():
                 print("That wasn't valid")
 
 
-def reset_clock_pause(obs: WebsocketsManager = None):
+def reset_clock_pause(obs: OBSWebsocketsManager = None):
     while True:
         user_input = input("Enter 1 to add/remove time from countdown pause\nEnter 2 to reset current countdown pause\nEnter 0 to go back\n")
         if not user_input.isdigit():
@@ -583,7 +587,7 @@ def reset_clock_pause(obs: WebsocketsManager = None):
                         print("Not Valid, try again..")
 
 
-def reset_clock_accel_rate(obs: WebsocketsManager = None):
+def reset_clock_accel_rate(obs: OBSWebsocketsManager = None):
     while True:
         user_input = input(f"Enter 1 to add to ACCEL rate timer\nEnter 2 to remove from ACCEL rate timer\nEnter 0 to go back\n")
         if not user_input.isdigit():
@@ -627,7 +631,7 @@ def reset_clock_accel_rate(obs: WebsocketsManager = None):
                 print(f"You must enter a number, you put {user_input} which is a {type(user_input)}")
 
 
-def reset_clock_slow_rate(obs: WebsocketsManager = None):
+def reset_clock_slow_rate(obs: OBSWebsocketsManager = None):
     while True:
         user_input = input(f"Enter 1 to add to countdown SLOW rate timer\nEnter 2 to remove from SLOW rate timer\nEnter 0 to go back\n")
         if not user_input.isdigit():
@@ -848,25 +852,25 @@ def round_num(n: Decimal, decimals: int = 2):
     return n.to_integral() if n == n.to_integral() else round(n.normalize(), decimals)
 
 
-def set_timer_cuss(obs: WebsocketsManager, countdown_cuss: float):
+def set_timer_cuss(obs: OBSWebsocketsManager, countdown_cuss: float):
     obs.set_text(obs_timer_cuss, f"No Cussing; {str(datetime.timedelta(seconds=countdown_cuss)).title()}")
 
 
-def set_timer_lube(obs: WebsocketsManager, new_current: float):
+def set_timer_lube(obs: OBSWebsocketsManager, new_current: float):
     obs.set_text(obs_timer_lube, f"Lube Applied {rate_lube}x; {str(datetime.timedelta(seconds=new_current)).title()}")
 
 
-def set_timer_count_up(obs: WebsocketsManager, time_left: float):
+def set_timer_count_up(obs: OBSWebsocketsManager, time_left: float):
     obs.set_text(obs_timer_countup, f"CountUp; {str(datetime.timedelta(seconds=time_left)).title()}")
 
 
-def set_timer_pause(obs: WebsocketsManager, show=None):
+def set_timer_pause(obs: OBSWebsocketsManager, show=None):
     obs.set_text(obs_timer_pause, f"Paused; {str(datetime.timedelta(seconds=read_file(clock_pause, int))).title()}")
     if show is not None:
         obs.set_source_visibility(obs_timer_scene, obs_timer_pause, show)
 
 
-def set_timer_rate(obs: WebsocketsManager, phase: str = "norm"):
+def set_timer_rate(obs: OBSWebsocketsManager, phase: str = "norm"):
     if phase == "slow":
         time_left = read_file(clock_time_phase_slow, int)
     elif phase == "accel":
@@ -876,7 +880,7 @@ def set_timer_rate(obs: WebsocketsManager, phase: str = "norm"):
     obs.set_text(obs_timer_rate, f"{int(countdown_rate_strict) if phase == 'slow' else int(float(strict_pause))} Real Sec/{int(float(strict_pause)) if phase == 'slow' else int(countdown_rate_strict)} Timer Sec; {str(datetime.timedelta(seconds=time_left)).title()}")
 
 
-def set_timer_so_far(obs: WebsocketsManager, current_sofar: int = None):
+def set_timer_so_far(obs: OBSWebsocketsManager, current_sofar: int = None):
     if current_sofar is None:
         current_sofar = read_file(clock_sofar, int)
     time_now = datetime.datetime.now()
@@ -884,7 +888,7 @@ def set_timer_so_far(obs: WebsocketsManager, current_sofar: int = None):
     obs.set_text(obs_timer_systime, f"{str(time_now.strftime(f'%b %d')).capitalize()}, {str(time_now.strftime('%I:%M:%S%p')).lower().removeprefix('0')}")
 
 
-def set_hype_ehvent(obs: WebsocketsManager, mult: float, status: str = "Enabled"):
+def set_hype_ehvent(obs: OBSWebsocketsManager, mult: float, status: str = "Enabled"):
     value = True
     obs.set_text(obs_hype_ehvent, f"HypeEhVent {status} @ {mult:.1f}X")
     if status == "Disabled":
@@ -915,39 +919,35 @@ def write_bot_raid(value: bool):
 
 
 def write_clock_cuss(value: float):
-    with open(clock_cuss_state, "w") as file:
-        file.write("True")
-    with open(clock_cuss, "r") as file:
-        new_current = float(file.read()) + value
+    if not read_file(clock_cuss_state, bool):
+        with open(clock_cuss_state, "w") as file:
+            file.write("True")
+    new_current = read_file(clock_cuss, float) + value
     with open(clock_cuss, "w") as file:
         file.write(str(new_current))
     return new_current
 
 
 def write_clock_lube(value: float):
-    with open(clock_lube_state, "w") as file:
-        file.write("True")
-    with open(clock_lube, "r") as file:
-        new_current = float(file.read()) + value
+    if not read_file(clock_lube_state, bool):
+        with open(clock_lube_state, "w") as file:
+            file.write("True")
+    new_current = read_file(clock_lube, float) + value
     with open(clock_lube, "w") as file:
         file.write(str(new_current))
     return new_current
 
 
 def write_clock_up_time(value: float):
-    with open(clock_time_mode, "r") as file:
-        current_direction_time = float(file.read())
-    new_direction_time = current_direction_time + value
+    new_direction_time = read_file(clock_time_mode, float) + value
     with open(clock_time_mode, "w") as file:
         file.write(str(new_direction_time))
     return new_direction_time
 
 
 def write_clock_time_phase_accel(value: float):
-    with open(clock_time_phase_accel, "r") as file:
-        current_accel_time = float(file.read())
-    new_accel_time = current_accel_time + value
-    if new_accel_time < 0:
+    new_accel_time = read_file(clock_time_phase_accel, float) + value
+    if new_accel_time <= 0:
         new_accel_time = 0.0
     with open(clock_time_phase_accel, "w") as file:
         file.write(str(new_accel_time))
@@ -955,10 +955,8 @@ def write_clock_time_phase_accel(value: float):
 
 
 def write_clock_time_phase_slow(value: float):
-    with open(clock_time_phase_slow, "r") as file:
-        current_slow_time = float(file.read())
-    new_slow_time = current_slow_time + value
-    if new_slow_time < 0:
+    new_slow_time = read_file(clock_time_phase_slow, float) + value
+    if new_slow_time <= 0:
         new_slow_time = 0.0
     with open(clock_time_phase_slow, "w") as file:
         file.write(str(new_slow_time))
@@ -999,7 +997,7 @@ def write_night_mode(new_state: bool):
         file.write(str(new_state))
 
 
-def write_sofar(second: float, obs: WebsocketsManager = None):
+def write_sofar(second: float, obs: OBSWebsocketsManager = None):
     current_sofar = read_file(clock_sofar, float) + second
     with open(clock_sofar, "w") as file:
         file.write(str(current_sofar))
@@ -1007,7 +1005,7 @@ def write_sofar(second: float, obs: WebsocketsManager = None):
         set_timer_so_far(obs, int(current_sofar))
 
 
-def write_clock(seconds: float, logger, add: bool = False, obs: WebsocketsManager = None, countdown: bool = False, manual: bool = False):
+def write_clock(seconds: float, logger, add: bool = False, obs: OBSWebsocketsManager = None, countdown: bool = False, manual: bool = False):
     try:
         formatted_missed_seconds = None
         current_seconds = read_file(clock, float)
