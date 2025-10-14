@@ -4,7 +4,7 @@ import asyncio
 import datetime
 from functions import clock, clock_max, clock_pause, clock_total, clock_time_started, clock_reset_time, \
     write_clock, reset_max_time, reset_total_time, reset_current_time, loop_get_user_input_clock, reset_sofar_time, \
-    clock_sofar, reset_clock_slow_rate, reset_clock_pause, WebsocketsManager, fortime, setup_logger, \
+    clock_sofar, reset_clock_slow_rate, reset_clock_pause, OBSWebsocketsManager, fortime, setup_logger, \
     full_shutdown, cls, write_clock_phase_slow_rate, reset_clock_accel_rate, clock_time_mode, \
     clock_phase, strict_pause, countdown_rate_strict, clock_time_phase_accel, \
     clock_time_phase_slow, set_timer_rate, set_timer_count_up, set_timer_pause, obs_timer_main, obs_timer_sofar, obs_timer_scene, \
@@ -33,7 +33,7 @@ def countdown(total_seconds: float):
     keyboard_interrupt = False
     rotation = 0
     start_time = time.perf_counter()
-    while total_seconds > 0.0:
+    while True:
         try:
             if keyboard_interrupt:
                 logger.info(f"{fortime()}: KeyBoard Interrupt Detected.. Exiting Countdown...")
@@ -41,6 +41,9 @@ def countdown(total_seconds: float):
             add, pause, pause_old, countdown_up_time, countdown_slow_rate_time, old_countdown_direction, countdown_direction, \
                 new_countdown_direction, old_countdown_phase, countdown_phase, new_countdown_phase, countdown_cuss, countdown_cuss_state, \
                 countdown_lube, countdown_lube_state = define_countdown()
+            if total_seconds <= 0.0 and pause == 0:
+                logger.info(f"{fortime()}: Timer Reached 0 and No Pause Time!! -- total_seconds; {total_seconds} -- pause; {pause}")
+                break
             if countdown_phase != old_countdown_phase:
                 with open(clock_phase_old, "w") as file:
                     file.write(countdown_phase)
@@ -277,7 +280,7 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Error in data check -- {e}")
         quit()
-    obs = WebsocketsManager()
+    obs = OBSWebsocketsManager()
     try:
         connected = obs.connect()
         if not connected:
