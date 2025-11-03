@@ -21,11 +21,12 @@ obs_timer_countup=TimerCountUp
 obs_timer_sofar=TwitchTimerSoFar
 obs_timer_systime=TwitchTimerSysTime
 obs_hype_ehvent=HypeEhVent
+obs_mini_timer_scene_name=NS-Addons
+obs_mini_timer_source_name=MiniTimer
 link_clip=https://www.twitch.tv/{}/clip/
 link_tip=YOURLINKPAGE
 link_discord=YOURDISCORDLINK
 link_loots=YOURLOOTSLINK
-link_loots_discount=YOUR20%OFFLOOTSLINK
 link_loots_coupon_blank=https://www.streamloots.com/YOURUSERNAMEHERE?couponCode=
 link_throne=YOURTHRONELINK
 link_treatstream=YOURTREATSTREAMLINK
