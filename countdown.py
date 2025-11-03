@@ -41,7 +41,7 @@ def countdown(total_seconds: float):
             add, pause, pause_old, countdown_up_time, countdown_slow_rate_time, old_countdown_direction, countdown_direction, \
                 new_countdown_direction, old_countdown_phase, countdown_phase, new_countdown_phase, countdown_cuss, countdown_cuss_state, \
                 countdown_lube, countdown_lube_state = define_countdown()
-            if total_seconds <= 0.0 and pause == 0:
+            if total_seconds <= 0.0 and pause <= 0:
                 logger.info(f"{fortime()}: Timer Reached 0 and No Pause Time!! -- total_seconds; {total_seconds} -- pause; {pause}")
                 break
             if countdown_phase != old_countdown_phase:
