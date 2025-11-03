@@ -17,16 +17,15 @@ If your split is different, these numbers are not going to be accurate
 """
 import os
 import sys
-import datetime
 import time
 import logging
 import asyncio
+import datetime
 from pathlib import Path
 from decimal import Decimal
 from dotenv import load_dotenv
-from mongoengine import Document
 from obswebsocket import obsws, requests
-from mongoengine import connect, disconnect_all
+from mongoengine import connect, disconnect_all, Document
 
 time_ice = 300
 time_lube = 300
@@ -63,11 +62,14 @@ archive_logs_directory = f"{logs_directory}archive_log\\"
 data_bot = f"{data_directory}bot\\"
 data_clock = f"{data_directory}clock\\"
 data_games = f"{data_bot}games\\"
+data_generic = f"{data_bot}generic\\"
 Path(data_directory).mkdir(parents=True, exist_ok=True)
 Path(logs_directory).mkdir(parents=True, exist_ok=True)
 Path(archive_logs_directory).mkdir(parents=True, exist_ok=True)
 Path(data_bot).mkdir(parents=True, exist_ok=True)
 Path(data_clock).mkdir(parents=True, exist_ok=True)
+Path(data_games).mkdir(parents=True, exist_ok=True)
+Path(data_generic).mkdir(parents=True, exist_ok=True)
 
 clock_reset_time = "0.0"  # STRICT value -- For timer resets
 strict_pause = 1.0  # STRICT value -- For timer manipulations
@@ -78,6 +80,7 @@ standard_direct_dono = 7.0  # Base value -- For marathon related events
 
 nl = "\n"
 long_dashes = "-------------------------------------------------------------------"
+bot_coupon_codes = f"{data_generic}coupon_codes.txt"
 bot_delete_phrases = f"{data_bot}delete_phrases.txt"
 bot_fish = f"{data_bot}fish_rewards"
 bot_flash_frequency = f"{data_bot}flash_frequency.txt"
@@ -259,7 +262,7 @@ def configure_hype_ehvent(channel_document: Document, obs: OBSWebsocketsManager)
                             mult = (user_input - 1) / 10 + standard_ehvent_mult
                         else:
                             mult = standard_ehvent_mult
-                        set_hype_ehvent(obs, mult)
+                        set_hype_ehvent(obs, mult, f"{'EN' if new_value else 'DIS'}ABLED")
                         print(f"Thee Hype EhVent(TRAIN_VARIABLE) is now {'EN' if new_value else 'DIS'}ABLED")
                         break
             elif user_input == 2:
@@ -502,7 +505,7 @@ def numberize(n: float, decimals: int = 2) -> str:
         return is_negative_string + str(n)
 
 
-def read_file(file_name: str, return_type: any) -> bool | float | int | list | str:
+def read_file(file_name: str, return_type: type(bool) | type(float) | type(int) | type(list) | type(str)) -> bool | float | int | list | str:
     with open(file_name, "r", encoding="utf-8") as file:
         variable = file.read()
     try:
@@ -852,6 +855,13 @@ def round_num(n: Decimal, decimals: int = 2):
     return n.to_integral() if n == n.to_integral() else round(n.normalize(), decimals)
 
 
+def save_coupons(coupon_list: list, logger: logging):
+    with open(bot_coupon_codes, "w", encoding="utf-8") as file:
+        file.write("\n".join(coupon_list))
+    if len(coupon_list) == 0:
+        logger.warning(f"{fortime()}: Warning!! Coupon List Saved Empty!!! Make New Codes Dumb Ass!!!")
+
+
 def set_timer_cuss(obs: OBSWebsocketsManager, countdown_cuss: float):
     obs.set_text(obs_timer_cuss, f"No Cussing; {str(datetime.timedelta(seconds=countdown_cuss)).title()}")
 
@@ -888,10 +898,10 @@ def set_timer_so_far(obs: OBSWebsocketsManager, current_sofar: int = None):
     obs.set_text(obs_timer_systime, f"{str(time_now.strftime(f'%b %d')).capitalize()}, {str(time_now.strftime('%I:%M:%S%p')).lower().removeprefix('0')}")
 
 
-def set_hype_ehvent(obs: OBSWebsocketsManager, mult: float, status: str = "Enabled"):
+def set_hype_ehvent(obs: OBSWebsocketsManager, mult: float, status: str = "ENABLED"):
     value = True
     obs.set_text(obs_hype_ehvent, f"HypeEhVent {status} @ {mult:.1f}X")
-    if status == "Disabled":
+    if status == "DISABLED":
         value = False
     obs.set_source_visibility(obs_timer_scene, obs_hype_ehvent, value)
 
@@ -1019,7 +1029,7 @@ def write_clock(seconds: float, logger, add: bool = False, obs: OBSWebsocketsMan
                 seconds -= seconds_to_subtract
                 total_seconds -= seconds_to_subtract
                 formatted_missed_seconds = str(datetime.timedelta(seconds=int(seconds_to_subtract))).title()
-                logger.warn(f"{fortime()}: WRITE_CLOCK; Went above MAX TIME -- {formatted_missed_seconds} ({seconds_to_subtract}--{int(seconds_to_subtract)}) will NOT be added")
+                logger.warning(f"{fortime()}: WRITE_CLOCK; Went above MAX TIME -- {formatted_missed_seconds} ({seconds_to_subtract}--{int(seconds_to_subtract)}) will NOT be added")
             current_seconds += seconds
             with open(clock, "w") as file:
                 file.write(str(current_seconds))
