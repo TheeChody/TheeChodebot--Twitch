@@ -1,4 +1,5 @@
 /.idea/
+/data/
 /logs/
 .env
 oauth.json
