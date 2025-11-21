@@ -68,6 +68,8 @@ target_scopes = [AuthScope.BITS_READ, AuthScope.CLIPS_EDIT, AuthScope.CHANNEL_BO
                  AuthScope.MODERATOR_MANAGE_ANNOUNCEMENTS, AuthScope.MODERATOR_MANAGE_WARNINGS]
 logger_list = []
 
+# Verify
+
 angry_items = ("an aggressive dragon", "an aggressive midget", "an aggressive carnage", "an aggressive mullens", "an aggressive pious")  # Maylore
 fish_special_items = ("some ice for thee timer", "some lube for thee timer", "a glowing hot chuck of coal")
 weapon_tuple = ("a dildo", "a beer bottle", "a brick", "a stabby stab knife", "a bundle of flowers", "a broom", "Gordon Ramsey's Knife", "a goldfish", "some ankle restraints for thee timer")
