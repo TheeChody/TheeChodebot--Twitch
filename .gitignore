@@ -1,4 +1,5 @@
-/.env
-/user_token.json
-/data/
+/.idea/
 /logs/
+.env
+oauth.json
+user_token.json
