@@ -1,0 +1,35 @@
+Alcohol/Drugs Found/Used
+Deployed Lethal
+Deployed Non-Lethal
+Citizen Helps Officer
+Fire/Property Damage
+Furmissle Launch
+Melee Fight/Struggle
+Officer Forces Entry/Exit
+Officer Injured
+Officer Instigates/Provokes
+Officer Misses Immobilization Technique
+Suspect "Can't Breathe"
+Suspect Bodily Fluids at Individual
+Suspect Claim Above Law/Cop Lose Job/Get Sued
+Suspect Cries Abuse of Rights
+Suspect Cries Sexual Abuse
+Suspect Deface Themselves
+Suspect Delinquency Of A Minor
+Suspect Drives Opposing Traffic
+Suspect Family/Friend Arrested
+Suspect Flees
+Suspect Freaks Thee Fuck Out
+Suspect Immobilized
+Suspect Injured
+Suspect No Insurance/Registration
+Suspect Overly Repeats Self
+Suspect Plays Gender/Medical/Race Card
+Suspect Professional Criminal
+Suspect Rants About Nonsense
+Suspect Refuses to ID/No ID
+Suspect Refuses to Listen
+Suspect Resists
+Suspect Says Arrest/Jail/Kill Them
+Suspect Threatens Cop(Family)
+Suspect Vehicle Crash

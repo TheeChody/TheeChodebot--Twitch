@@ -37,7 +37,6 @@ obs_host_test = os.getenv("obs_host_test")
 obs_port = int(os.getenv("obs_port"))
 obs_pass = os.getenv("obs_pass")
 obs_timer_cuss = os.getenv("obs_timer_cuss")
-obs_timer_ice = os.getenv("obs_timer_ice")
 obs_timer_lube = os.getenv("obs_timer_lube")
 obs_timer_scene = os.getenv("obs_timer_scene")
 obs_timer_main = os.getenv("obs_timer_main")
@@ -71,6 +70,7 @@ Path(data_clock).mkdir(parents=True, exist_ok=True)
 Path(data_games).mkdir(parents=True, exist_ok=True)
 Path(data_generic).mkdir(parents=True, exist_ok=True)
 
+clock_data = f"{data_clock}clock_data.json"
 clock_reset_time = "0.0"  # STRICT value -- For timer resets
 strict_pause = 1.0  # STRICT value -- For timer manipulations
 countdown_rate_strict = 5.0  # Base value -- For timer rate manipulations
@@ -93,8 +93,6 @@ song_requests = f"{data_bot}song_requests.txt"
 clock = f"{data_clock}main.txt"
 clock_cuss = f"{data_clock}time_cuss.txt"
 clock_cuss_state = f"{data_clock}state_cuss.txt"
-clock_ice = f"{data_clock}time_ice.txt"
-clock_ice_state = f"{data_clock}state_ice.txt"
 clock_lube = f"{data_clock}time_lube.txt"
 clock_lube_state = f"{data_clock}state_lube.txt"
 clock_mode = f"{data_clock}mode.txt"
@@ -505,6 +503,63 @@ def numberize(n: float, decimals: int = 2) -> str:
         return is_negative_string + str(n)
 
 
+# def read_file(file_name: str, return_type: type(bool) | type(datetime) | type(dict) | type(float) | type(int) | type(list) | type(str)) -> bool | datetime | dict | float | int | list | str | None:
+#     def open_file(json_: bool = False):
+#         with open(file_name, "r", encoding="utf-8") as file:
+#             if json_:
+#                 return json.load(file)
+#             else:
+#                 return file.read()
+#
+#     try:
+#         if return_type == bool:
+#             variable = open_file()
+#             if variable == "True":
+#                 return True
+#             elif variable == "False":
+#                 return False
+#             else:
+#                 return f"ValueError Converting {variable} to {return_type}"
+#         elif return_type == datetime:
+#             return datetime.datetime.strptime(open_file(), "%Y-%m-%d %H:%M:%S.%f")
+#         elif type(return_type) == dict:
+#             if return_type['json']:
+#                 return open_file(True)
+#             else:
+#                 return dict(open_file())
+#         elif return_type == dict:
+#             return dict(open_file())
+#         elif type(return_type) == list:
+#             variable = open_file()
+#             if return_type[1] == "split":
+#                 variable = variable.split(return_type[2], maxsplit=return_type[3])
+#             elif return_type[1] == "splitlines":
+#                 variable = variable.splitlines()
+#             if return_type[0] == map:
+#                 return list(map(str, variable))
+#             else:
+#                 return list(variable)
+#         elif return_type in (int, float):
+#             variable = float(open_file())
+#             if return_type == float:
+#                 return variable
+#             return int(variable)
+#         else:
+#             return open_file()
+#     except FileNotFoundError:
+#         print(f"{fortime()}: {file_name} Doesn't Exist!")
+#         time.sleep(10)
+#         return None
+#     except ValueError:
+#         variable = open_file()
+#         return f"ValueError Converting {variable} (type; {type(variable)}) to {return_type}"
+#     except Exception as e:
+#         error_msg = f"{fortime()}: Error in 'read_file' -- Generic Error -- {e}"
+#         print(error_msg)
+#         time.sleep(10)
+#         return error_msg
+
+
 def read_file(file_name: str, return_type: type(bool) | type(float) | type(int) | type(list) | type(str)) -> bool | float | int | list | str:
     with open(file_name, "r", encoding="utf-8") as file:
         variable = file.read()
@@ -860,6 +915,11 @@ def save_coupons(coupon_list: list, logger: logging):
         file.write("\n".join(coupon_list))
     if len(coupon_list) == 0:
         logger.warning(f"{fortime()}: Warning!! Coupon List Saved Empty!!! Make New Codes Dumb Ass!!!")
+
+
+# def save_json(_dict: dict, file_name: str):
+#     with open(file_name, "w", encoding="utf-8") as file:
+#         json.dump(_dict, file, indent=4, ensure_ascii=False)
 
 
 def set_timer_cuss(obs: OBSWebsocketsManager, countdown_cuss: float):

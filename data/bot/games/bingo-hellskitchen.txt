@@ -1,0 +1,27 @@
+Chef Blames Equipment/Other/Pace
+Chef Food Cold
+Chef Food Cook Over
+Chef Food Cook Under
+Chef Food Season Over
+Chef Food Season Under
+Chef Injury
+Chef Kicked Out Kitchen
+Chef Miscommunication
+Chef Talks Back
+Chef Throws Other Under-bus
+Ramsay Gives Compliment
+Ramsay Kicks/Shash/Toss Item
+Ramsay Says "Fuck Off"
+Ramsay Says "Fucking Hell"
+Ramsay Says "Get Out"
+Ramsay Says "How Long?"
+Ramsay Says "It's Raw"
+Ramsay Says "Piss Off"
+Ramsay Says "Rubbery Scallops"
+Ramsay Says "Shut It Down"
+Ramsay Says "You Ass/Donkey"
+Ramsay Smash/Spit/Toss Food
+Team KO Blue
+Team KO Both
+Team KO None
+Team KO Red
