@@ -16,7 +16,7 @@ from twitchAPI.eventsub.websocket import EventSubWebsocket
 from twitchAPI.oauth import UserAuthenticationStorageHelper
 from twitchAPI.type import AuthScope, TwitchBackendException
 from mongoengine import DEFAULT_CONNECTION_NAME, Document
-from twitchAPI.object.eventsub import ChannelAdBreakBeginEvent, ChannelBitsUseEvent, ChannelChatMessageEvent, ChannelChatNotificationEvent, ChannelCheerEvent, ChannelFollowEvent, ChannelPollBeginEvent, \
+from twitchAPI.object.eventsub import ChannelAdBreakBeginEvent, ChannelBitsUseEvent, ChannelChatMessageEvent, ChannelChatNotificationEvent, ChannelFollowEvent, ChannelPollBeginEvent, \
     ChannelPointsCustomRewardRedemptionAddEvent, ChannelPollEndEvent, ChannelPredictionEvent, ChannelRaidEvent, ChannelSubscribeEvent, ChannelSubscriptionGiftEvent, ChannelUpdateEvent, \
     HypeTrainEvent, HypeTrainEndEvent, StreamOnlineEvent, StreamOfflineEvent
 from functions import bot_coupon_codes, bot_fish, bot_mini_games, bot_night_mode, bot_raid_mode, check_hype_train, clock, clock_max, clock_mode, clock_pause, clock_phase, clock_time_phase_accel, \
@@ -69,8 +69,6 @@ target_scopes = [AuthScope.BITS_READ, AuthScope.CLIPS_EDIT, AuthScope.CHANNEL_BO
                  AuthScope.MODERATOR_MANAGE_CHAT_MESSAGES, AuthScope.MODERATION_READ, AuthScope.CHANNEL_MANAGE_MODERATORS,
                  AuthScope.MODERATOR_MANAGE_ANNOUNCEMENTS, AuthScope.MODERATOR_MANAGE_WARNINGS]
 logger_list = []
-
-# Verify
 
 angry_items = ("an aggressive dragon", "an aggressive midget", "an aggressive carnage", "an aggressive mullens", "an aggressive pious")  # Maylore
 fish_special_items = ("some ice for thee timer", "some lube for thee timer", "a glowing hot chuck of coal")
@@ -159,6 +157,34 @@ async def on_stream_ad_start(data: ChannelAdBreakBeginEvent):
             # obs.set_source_visibility("NS-Overlay", "InAd", False)
     except Exception as e:
         logger.error(f"{fortime()}: Error in 'on_stream_ad_start' -- {e}")
+        return
+
+
+async def on_stream_bitties(data: ChannelBitsUseEvent):
+    try:
+        points = None
+        _type = data.event.type
+        response, response_level = "!", None
+        channel_document = await get_channel_document(streamer.id, streamer.display_name, streamer.login)
+        chatter_username = data.event.user_name
+        chatter_document = await get_chatter_document(data)
+        if chatter_document is not None:
+            points_to_add = float((standard_points * data.event.bits) / 2)
+            if channel_document['data_channel']['hype_train']['current']:
+                points_to_add = check_hype_train(channel_document, points_to_add)
+            chatter_document, response_level = await twitch_points_transfer(chatter_document, channel_document, points_to_add)
+            channel_document['data_games']['gamble']['total'] += points_to_add / 4
+            channel_document.save()
+            points = chatter_document['data_user']['rank']['points']
+        if channel_document['data_channel']['writing_clock']:
+            seconds = float(standard_seconds * data.event.bits)
+            if channel_document['data_channel']['hype_train']['current']:
+                seconds = check_hype_train(channel_document, seconds)
+            seconds, time_not_added = write_clock(seconds, logger, True, obs)
+            response = f", adding {str(datetime.timedelta(seconds=int(seconds))).title()} to thee clock!!{f' Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}"
+        await bot.send_chat_message(streamer.id, streamer.id, f"{chatter_username} has {f'combo{q}d' if _type == 'combo' else f'power{q}d up' if _type == 'power_up' else 'cheered'} {data.event.bits}{response}{f' You have {numberize(points)} {bot_name} Points' if points is not None else ''}{f' {response_level}' if response_level is not None else ''} {response_thanks}")
+    except Exception as e:
+        logger.error(f"{fortime()}: Error in 'on_stream_bitties' -- {e}")
         return
 
 
@@ -3573,29 +3599,6 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 logger.error(f"{fortime()}: Error in on_stream_chat_message -- twitch_points -- {f}")
                 pass
         response_spec_msg = None
-        # if data.event.message_type.startswith("power_ups") and channel_document['data_channel']['writing_clock']:  # power_ups_message_effect, power_ups_gigantified_emote
-        #     special_logger.info(f"Special Message -- {data.event.message_type}")
-        #     try:
-        #         if data.event.message_type == "power_ups_message_effect":
-        #             bits = 25
-        #         elif data.event.message_type == "power_ups_gigantified_emote":
-        #             bits = 50
-        #         elif data.event.message_type == "power_ups_onscreen_celebration":
-        #             bits = 75
-        #         else:
-        #             logger.error(f"{fortime()}: Error in on_stream_chat_message -- power_ups bits -- {data.event.message_type} {type(data.event.message_type)}")
-        #             await bot.send_chat_message(streamer.id, streamer.id, f"Unable to identify # of bits..")
-        #             return
-        #         seconds = bits * standard_seconds
-        #         if channel_document['data_channel']['hype_train']['current']:
-        #             seconds = check_hype_train(channel_document, seconds)
-        #         seconds, not_added = write_clock(seconds, logger, True, obs)
-        #         response_spec_msg = f"{chatter_username} added {datetime.timedelta(seconds=int(seconds))} to thee clock{f' -- MAX TIME HIT {not_added} to thee clock' if not_added is not None else ''} {response_thanks}"
-        #         special_logger.info(response_spec_msg)
-        #     except Exception as f:
-        #         logger.error(f"{fortime()}: Error in on_stream_chat_message -- power_ups -- {f}")
-        #         end_timer("power_ups")
-        #         return
         if response_spec_msg is not None or response_ranword is not None or response_level is not None:
             if response_level is not None and command is not None and response_spec_msg is None and response_ranword is None:
                 end_timer("level up during command")
@@ -3638,34 +3641,6 @@ async def on_stream_chat_notification(data: ChannelChatNotificationEvent):
             await bot.send_chat_message(streamer.id, streamer.id, f"{data.event.chatter_user_name} just unlocked thee {numberize(data.event.bits_badge_tier.tier)} bitties badge!! {response_thanks}")
     except Exception as e:
         logger.error(f"{fortime()}: Error in on_stream_chat_notification -- {e}")
-        return
-
-
-async def on_stream_bitties(data: ChannelBitsUseEvent):
-    try:
-        points = None
-        _type = data.event.type
-        response, response_level = "!", None
-        channel_document = await get_channel_document(streamer.id, streamer.display_name, streamer.login)
-        chatter_username = data.event.user_name
-        chatter_document = await get_chatter_document(data)
-        if chatter_document is not None:
-            points_to_add = float((standard_points * data.event.bits) / 2)
-            if channel_document['data_channel']['hype_train']['current']:
-                points_to_add = check_hype_train(channel_document, points_to_add)
-            chatter_document, response_level = await twitch_points_transfer(chatter_document, channel_document, points_to_add)
-            channel_document['data_games']['gamble']['total'] += points_to_add / 4
-            channel_document.save()
-            points = chatter_document['data_user']['rank']['points']
-        if channel_document['data_channel']['writing_clock']:
-            seconds = float(standard_seconds * data.event.bits)
-            if channel_document['data_channel']['hype_train']['current']:
-                seconds = check_hype_train(channel_document, seconds)
-            seconds, time_not_added = write_clock(seconds, logger, True, obs)
-            response = f", adding {str(datetime.timedelta(seconds=int(seconds))).title()} to thee clock!!{f' Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}"
-        await bot.send_chat_message(streamer.id, streamer.id, f"{chatter_username} has {f'combo{q}d' if _type == 'combo' else f'power{q}d up' if _type == 'power_up' else 'cheered'} {data.event.bits}{response}{f' You have {numberize(points)} {bot_name} Points' if points is not None else ''}{f' {response_level}' if response_level is not None else ''} {response_thanks}")
-    except Exception as e:
-        logger.error(f"{fortime()}: Error in 'on_stream_bitties' -- {e}")
         return
 
 
