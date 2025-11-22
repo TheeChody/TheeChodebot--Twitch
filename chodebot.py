@@ -9,14 +9,14 @@ from copy import copy
 from twitchAPI.helper import first
 from twitchAPI.twitch import Twitch
 from mondocs import Channels, Users
-from pyprobs import Probability as pr
+from pyprobs import Probability as pR
 from timeit import default_timer as timer
 from ytmusicapi import YTMusic, OAuthCredentials
 from twitchAPI.eventsub.websocket import EventSubWebsocket
 from twitchAPI.oauth import UserAuthenticationStorageHelper
 from twitchAPI.type import AuthScope, TwitchBackendException
 from mongoengine import DEFAULT_CONNECTION_NAME, Document
-from twitchAPI.object.eventsub import ChannelAdBreakBeginEvent, ChannelChatMessageEvent, ChannelChatNotificationEvent, ChannelCheerEvent, ChannelFollowEvent, ChannelPollBeginEvent, \
+from twitchAPI.object.eventsub import ChannelAdBreakBeginEvent, ChannelBitsUseEvent, ChannelChatMessageEvent, ChannelChatNotificationEvent, ChannelCheerEvent, ChannelFollowEvent, ChannelPollBeginEvent, \
     ChannelPointsCustomRewardRedemptionAddEvent, ChannelPollEndEvent, ChannelPredictionEvent, ChannelRaidEvent, ChannelSubscribeEvent, ChannelSubscriptionGiftEvent, ChannelUpdateEvent, \
     HypeTrainEvent, HypeTrainEndEvent, StreamOnlineEvent, StreamOfflineEvent
 from functions import bot_coupon_codes, bot_fish, bot_mini_games, bot_night_mode, bot_raid_mode, check_hype_train, clock, clock_max, clock_mode, clock_pause, clock_phase, clock_time_phase_accel, \
@@ -28,12 +28,14 @@ from functions import bot_coupon_codes, bot_fish, bot_mini_games, bot_night_mode
     write_clock, write_clock_time_phase_accel, write_clock_pause, write_clock_phase, write_clock_time_phase_slow, write_clock_phase_slow_rate, write_clock_up_time, write_clock_cuss, write_clock_lube
 
 # ToDo List ------------------------------------------------------------------------------------------------------------
-#  -- 1; Add Translation from MorseCode to English  -- Still unsure of this one..
-#  -- 2; Bowling mini-game - think it over
-#  -- 3; PickPocket mini-game - think it over
-#  -- 4; Moonbear wants a pp pump
-#  -- 5; Kyawthuite - the rarest mineral on earth, only been found once?? Maybe make it only be 'caught' once?
-#  -- 6; URGENT: ADD SOUNDS TO CUSS TIMER!!!!!!!!!!!!!!!!!!!!!!!!!!! URGENT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#  --  1; Add Translation from MorseCode to English  -- Still unsure of this one..
+#  --  2; Bowling mini-game - think it over
+#  --  3; PickPocket mini-game - think it over
+#  --  4; Moonbear wants a pp pump
+#  --  5; Kyawthuite - the rarest mineral on earth, only been found once?? Maybe make it only be 'caught' once?
+#  --  6; URGENT: ADD SOUNDS TO CUSS TIMER!!!!!!!!!!!!!!!!!!!!!!!!!!! URGENT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#  --  7; Legendary Fish That Needs Multiple Chodelings To Catch. Chance of catching increases with number of chodelings
+#          % it shows up every hour or so
 #  ---------------------------------------------------- End of List ----------------------------------------------------
 
 # ToDo: Fail Bingo Nights -- specific genre's or generic
@@ -77,6 +79,7 @@ shield_tuple = ("a body", "a moist dude", "a dragon", "a snake", "all of maylore
 lurk_tuple = ("lurk", "brb")
 lurk_tuple_special = ("xboxbalurk", "hypelurk", "darktr29lurk")
 
+q = "'"
 id_streamloots = "451658633"
 id_carnage = "659640208"
 id_chodebot = "1023291886"
@@ -191,7 +194,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 user_name = "chabette973"
             elif user_name == "karenglass":
                 user_name = "peaches_003"
-            elif user_name == "aromaticroaster":
+            elif user_name == "aromatic-roaster":
                 user_name = "aromatic_roaster"
             chatter_document = Users.objects.get(name=user_name)
             chatter_document, response_level = await twitch_points_transfer(chatter_document, channel_document, points / 4)  # / 2)
@@ -1196,7 +1199,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                         response_cutline = f"{target_document['name']} had a Uno-Reverse card set to counter Line Cuts, {chatter_username}'s line is cut instead!!"
                     else:
                         linecut_chance_low -= channel_document['data_games']['fish']['upgrades']['line'][str(target_document['data_games']['fish']['upgrade']['line'])]['effect']
-                        if pr.prob(linecut_chance_low / linecut_chance_high):
+                        if pR.prob(linecut_chance_low / linecut_chance_high):
                             target_document['data_games']['fish']['line']['cut'] = True
                             target_document['data_games']['fish']['line']['cut_by'] = chatter_username.lower()
                             target_document['data_games']['fish']['line']['cut_last'] = datetime.datetime.now()
@@ -2058,7 +2061,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                         return
                     chatter_document['data_user']['rank']['points'] -= gamble_cost
                     chatter_document['data_games']['gamble']['last'] = now_time
-                    if pr.prob(gamble_chance / 100):
+                    if pR.prob(gamble_chance / 100):
                         win_value = channel_document['data_games']['gamble']['total'] + gamble_cost
                         chatter_document['data_user']['rank']['points'] += win_value
                         chatter_document['data_games']['gamble']['total'] += 1
@@ -2127,7 +2130,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                         await bot.send_chat_message(streamer.id, streamer.id, f"You don't have enough {bot_name} points! Need {numberize(crew['cost'])}, you have {numberize(chatter_document['data_user']['rank']['points'])} {bot_name} points!", message_id)
                         return
                     chatter_document['data_user']['rank']['points'] -= crew['cost']
-                    if pr.prob((crew['chance'] + gamble_chance) / 100):
+                    if pR.prob((crew['chance'] + gamble_chance) / 100):
                         status = True
                         value_stole = channel_document['data_games']['gamble']['total']
                         chatter_document['data_user']['rank']['points'] += value_stole
@@ -2343,7 +2346,7 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                         chatter_document['data_games']['jail']['attempt_other_last'] = now_time
                         chatter_document.save()
                         chatter_document = await get_chatter_document(data)
-                    if pr.prob(80 / 100) or chatter_id == streamer.id:
+                    if pR.prob(80 / 100) or chatter_id == streamer.id:
                         if target_document['data_games']['jail']['escape_cards'] > 0 and chatter_id != streamer.id:
                             if chatter_document['name'] not in target_document['data_games']['jail']['history']:
                                 target_document['data_games']['jail']['history'][chatter_document['name']] = await set_new_dict("defender", "escaped", 1)
@@ -3570,29 +3573,29 @@ async def on_stream_chat_message(data: ChannelChatMessageEvent):
                 logger.error(f"{fortime()}: Error in on_stream_chat_message -- twitch_points -- {f}")
                 pass
         response_spec_msg = None
-        if data.event.message_type.startswith("power_ups") and channel_document['data_channel']['writing_clock']:  # power_ups_message_effect, power_ups_gigantified_emote
-            special_logger.info(f"Special Message -- {data.event.message_type}")
-            try:
-                if data.event.message_type == "power_ups_message_effect":
-                    bits = 25
-                elif data.event.message_type == "power_ups_gigantified_emote":
-                    bits = 50
-                elif data.event.message_type == "power_ups_onscreen_celebration":
-                    bits = 75
-                else:
-                    logger.error(f"{fortime()}: Error in on_stream_chat_message -- power_ups bits -- {data.event.message_type} {type(data.event.message_type)}")
-                    await bot.send_chat_message(streamer.id, streamer.id, f"Unable to identify # of bits..")
-                    return
-                seconds = bits * standard_seconds
-                if channel_document['data_channel']['hype_train']['current']:
-                    seconds = check_hype_train(channel_document, seconds)
-                seconds, not_added = write_clock(seconds, logger, True, obs)
-                response_spec_msg = f"{chatter_username} added {datetime.timedelta(seconds=int(seconds))} to thee clock{f' -- MAX TIME HIT {not_added} to thee clock' if not_added is not None else ''} {response_thanks}"
-                special_logger.info(response_spec_msg)
-            except Exception as f:
-                logger.error(f"{fortime()}: Error in on_stream_chat_message -- power_ups -- {f}")
-                end_timer("power_ups")
-                return
+        # if data.event.message_type.startswith("power_ups") and channel_document['data_channel']['writing_clock']:  # power_ups_message_effect, power_ups_gigantified_emote
+        #     special_logger.info(f"Special Message -- {data.event.message_type}")
+        #     try:
+        #         if data.event.message_type == "power_ups_message_effect":
+        #             bits = 25
+        #         elif data.event.message_type == "power_ups_gigantified_emote":
+        #             bits = 50
+        #         elif data.event.message_type == "power_ups_onscreen_celebration":
+        #             bits = 75
+        #         else:
+        #             logger.error(f"{fortime()}: Error in on_stream_chat_message -- power_ups bits -- {data.event.message_type} {type(data.event.message_type)}")
+        #             await bot.send_chat_message(streamer.id, streamer.id, f"Unable to identify # of bits..")
+        #             return
+        #         seconds = bits * standard_seconds
+        #         if channel_document['data_channel']['hype_train']['current']:
+        #             seconds = check_hype_train(channel_document, seconds)
+        #         seconds, not_added = write_clock(seconds, logger, True, obs)
+        #         response_spec_msg = f"{chatter_username} added {datetime.timedelta(seconds=int(seconds))} to thee clock{f' -- MAX TIME HIT {not_added} to thee clock' if not_added is not None else ''} {response_thanks}"
+        #         special_logger.info(response_spec_msg)
+        #     except Exception as f:
+        #         logger.error(f"{fortime()}: Error in on_stream_chat_message -- power_ups -- {f}")
+        #         end_timer("power_ups")
+        #         return
         if response_spec_msg is not None or response_ranword is not None or response_level is not None:
             if response_level is not None and command is not None and response_spec_msg is None and response_ranword is None:
                 end_timer("level up during command")
@@ -3638,34 +3641,31 @@ async def on_stream_chat_notification(data: ChannelChatNotificationEvent):
         return
 
 
-async def on_stream_cheer(data: ChannelCheerEvent):
-    # ToDo; Add progress bar to hype ehvent related contributions when during hype ehvent
+async def on_stream_bitties(data: ChannelBitsUseEvent):
     try:
-        points = 0
+        points = None
+        _type = data.event.type
         response, response_level = "!", None
         channel_document = await get_channel_document(streamer.id, streamer.display_name, streamer.login)
-        if data.event.is_anonymous:
-            chatter_username = "Anonymous"
-        else:
-            chatter_username = data.event.user_name
-            chatter_document = await get_chatter_document(data)
-            if chatter_document is not None:
-                points_to_add = float((standard_points * data.event.bits) / 2)
-                if channel_document['data_channel']['hype_train']['current']:
-                    points_to_add = check_hype_train(channel_document, points_to_add)
-                chatter_document, response_level = await twitch_points_transfer(chatter_document, channel_document, points_to_add)
-                channel_document['data_games']['gamble']['total'] += points_to_add / 4
-                channel_document.save()
-                points = chatter_document['data_user']['rank']['points']
+        chatter_username = data.event.user_name
+        chatter_document = await get_chatter_document(data)
+        if chatter_document is not None:
+            points_to_add = float((standard_points * data.event.bits) / 2)
+            if channel_document['data_channel']['hype_train']['current']:
+                points_to_add = check_hype_train(channel_document, points_to_add)
+            chatter_document, response_level = await twitch_points_transfer(chatter_document, channel_document, points_to_add)
+            channel_document['data_games']['gamble']['total'] += points_to_add / 4
+            channel_document.save()
+            points = chatter_document['data_user']['rank']['points']
         if channel_document['data_channel']['writing_clock']:
             seconds = float(standard_seconds * data.event.bits)
             if channel_document['data_channel']['hype_train']['current']:
                 seconds = check_hype_train(channel_document, seconds)
             seconds, time_not_added = write_clock(seconds, logger, True, obs)
             response = f", adding {str(datetime.timedelta(seconds=int(seconds))).title()} to thee clock!!{f' Max Time Reached! {time_not_added} not added to thee clock.' if time_not_added is not None else ''}"
-        await bot.send_chat_message(streamer.id, streamer.id, f"{chatter_username} has cheered {data.event.bits}{response}{f' You have {numberize(points)} {bot_name} Points' if points != 0 else ''}{f' {response_level}' if response_level is not None else ''} {response_thanks}")
+        await bot.send_chat_message(streamer.id, streamer.id, f"{chatter_username} has {f'combo{q}d' if _type == 'combo' else f'power{q}d up' if _type == 'power_up' else 'cheered'} {data.event.bits}{response}{f' You have {numberize(points)} {bot_name} Points' if points is not None else ''}{f' {response_level}' if response_level is not None else ''} {response_thanks}")
     except Exception as e:
-        logger.error(f"{fortime()}: Error in 'on_stream_cheer' -- {e}")
+        logger.error(f"{fortime()}: Error in 'on_stream_bitties' -- {e}")
         return
 
 
@@ -4450,9 +4450,9 @@ async def run(auto_cast_initiate):
     event_sub.start()
 
     await event_sub.listen_channel_ad_break_begin(streamer.id, on_stream_ad_start)
+    await event_sub.listen_channel_bits_use(streamer.id, on_stream_bitties)
     await event_sub.listen_channel_chat_message(streamer.id, streamer.id, on_stream_chat_message)
     await event_sub.listen_channel_chat_notification(streamer.id, streamer.id, on_stream_chat_notification)
-    await event_sub.listen_channel_cheer(streamer.id, on_stream_cheer)
     await event_sub.listen_channel_follow_v2(streamer.id, streamer.id, on_stream_follow)
     await event_sub.listen_hype_train_begin(streamer.id, on_stream_hype_begin)
     await event_sub.listen_hype_train_end(streamer.id, on_stream_hype_end)

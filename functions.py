@@ -970,7 +970,7 @@ def setup_logger(name: str, log_file: str, logger_list: list, level=logging.INFO
     try:
         local_logger = logging.getLogger(name)
         handler = logging.FileHandler(f"{logs_directory}{log_file}", mode="w", encoding="utf-8")
-        if name in ("logger", "countdown_logger"):  #, "bingo_logger"):
+        if name in ("logger", "countdown_logger"):  # , "bingo_logger"):
             console_handler = logging.StreamHandler()
             local_logger.addHandler(console_handler)
         local_logger.setLevel(level)
